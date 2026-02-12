@@ -329,19 +329,21 @@ export function ChatWindow() {
 
         <MessagePane messageListRef={messageListRef} isInitialState={isInitialState} messages={messages} sending={sending} />
 
-        <Composer
-          formRef={formRef}
-          textAreaRef={textAreaRef}
-          input={input}
-          sending={sending}
-          failedPaths={failedPaths}
-          debateRoundsCount={debateRounds.length}
-          judgeRoundsCount={judgeRounds.length}
-          onSubmit={onSubmit}
-          onInputChange={setInput}
-          onInputKeyDown={onInputKeyDown}
-          onApplyQuickPrompt={applyQuickPrompt}
-        />
+        <div className="shrink-0">
+          <Composer
+            formRef={formRef}
+            textAreaRef={textAreaRef}
+            input={input}
+            sending={sending}
+            failedPaths={failedPaths}
+            debateRoundsCount={debateRounds.length}
+            judgeRoundsCount={judgeRounds.length}
+            onSubmit={onSubmit}
+            onInputChange={setInput}
+            onInputKeyDown={onInputKeyDown}
+            onApplyQuickPrompt={applyQuickPrompt}
+          />
+        </div>
       </section>
     </div>
   );
