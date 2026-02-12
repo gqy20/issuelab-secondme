@@ -19,13 +19,13 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="grid grid-cols-[320px_1fr] gap-4">
+        <section className="grid grid-cols-[272px_1fr] gap-4">
           <aside className="sticky top-8 h-fit space-y-5">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_6px_18px_rgba(17,24,39,0.04)]">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-[0_2px_8px_rgba(17,24,39,0.03)]">
               <UserProfile />
             </div>
 
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_6px_18px_rgba(17,24,39,0.04)]">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-[0_2px_8px_rgba(17,24,39,0.03)]">
               <h2 className="text-sm font-semibold">{"\u4f7f\u7528\u5efa\u8bae"}</h2>
               <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--text-muted)]">
                 <li>{"\u5148\u63d0\u51fa\u4e00\u4e2a\u660e\u786e\u95ee\u9898\uff0c\u518d\u89c2\u5bdf\u4e09\u6761\u8def\u5f84\u7684\u5dee\u5f02\u3002"}</li>
@@ -35,7 +35,7 @@ export default function Home() {
             </div>
           </aside>
 
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[0_8px_24px_rgba(17,24,39,0.05)] md:p-5">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[0_12px_28px_rgba(17,24,39,0.08)] md:p-5">
             <ChatWindow />
           </div>
         </section>

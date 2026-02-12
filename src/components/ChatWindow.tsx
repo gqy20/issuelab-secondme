@@ -14,14 +14,8 @@ type PathReport = {
   error?: string;
 };
 
-type Synthesis = {
-  summary?: string;
-  recommendation?: string;
-};
-
-type Evaluation = {
-  score?: number;
-};
+type Synthesis = { summary?: string; recommendation?: string };
+type Evaluation = { score?: number };
 
 type DebateRoundItem = {
   path: PathKey;
@@ -45,9 +39,21 @@ type JudgeRoundItem = {
 
 const PATH_KEYS: PathKey[] = ["radical", "conservative", "cross_domain"];
 const PATH_LABELS: Record<PathKey, string> = {
-  radical: "激进路径",
-  conservative: "稳健路径",
-  cross_domain: "跨域路径",
+  radical: "\u6fc0\u8fdb\u8def\u5f84",
+  conservative: "\u7a33\u5065\u8def\u5f84",
+  cross_domain: "\u8de8\u57df\u8def\u5f84",
+};
+const QUICK_PROMPTS = [
+  "\u8bf7\u5bf9\u6bd4\u4e09\u6761\u8def\u5f84\u5728\u98ce\u9669\u4e0a\u7684\u6838\u5fc3\u5dee\u522b",
+  "\u57fa\u4e8e\u5f53\u524d\u7ed3\u8bba\u7ed9\u51fa\u4e00\u4e2a 30 \u5929\u6267\u884c\u8ba1\u5212",
+  "\u8bf7\u53ea\u805a\u7126\u53ef\u843d\u5730\u6027\uff0c\u91cd\u65b0\u7ed9\u51fa\u6392\u5e8f",
+];
+
+type StageMeta = {
+  label: string;
+  detail: string;
+  progress: number;
+  tone: "neutral" | "running" | "done" | "warn";
 };
 
 function parseSseBlock(block: string): SseEvent | null {
@@ -64,6 +70,49 @@ function parseSseBlock(block: string): SseEvent | null {
   return { event, data: dataLines.join("\n") };
 }
 
+function statusToStage(status: string, type: "path" | "debate"): StageMeta {
+  if (status === "done") {
+    return {
+      label: "\u5df2\u5b8c\u6210",
+      detail: type === "path" ? "\u8def\u5f84\u7ed3\u679c\u5df2\u6536\u6572" : "\u8fa9\u8bba\u8f6e\u6b21\u5df2\u7ed3\u675f",
+      progress: 100,
+      tone: "done",
+    };
+  }
+
+  if (status === "partial_failed" || status === "failed") {
+    return {
+      label: "\u90e8\u5206\u5931\u8d25",
+      detail: "\u53ef\u7ee7\u7eed\u67e5\u770b\u5df2\u6709\u8f93\u51fa\u6216\u91cd\u8bd5",
+      progress: 75,
+      tone: "warn",
+    };
+  }
+
+  if (status === "running") {
+    return {
+      label: "\u8fdb\u884c\u4e2d",
+      detail: type === "path" ? "\u6b63\u5728\u751f\u6210\u591a\u8def\u5f84\u8bbe\u60f3" : "\u6b63\u5728\u8fdb\u884c\u89c2\u70b9\u4ea4\u9519\u9a8c\u8bc1",
+      progress: 50,
+      tone: "running",
+    };
+  }
+
+  return {
+    label: "\u5f85\u5f00\u59cb",
+    detail: type === "path" ? "\u63d0\u95ee\u540e\u5c06\u81ea\u52a8\u5f00\u59cb" : "\u8def\u5f84\u5b8c\u6210\u540e\u8fdb\u5165\u8fa9\u8bba",
+    progress: 10,
+    tone: "neutral",
+  };
+}
+
+function badgeClass(tone: StageMeta["tone"]) {
+  if (tone === "done") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (tone === "running") return "border-sky-200 bg-sky-50 text-sky-700";
+  if (tone === "warn") return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
 export function ChatWindow() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -76,7 +125,10 @@ export function ChatWindow() {
   const [debateRounds, setDebateRounds] = useState<DebateRoundItem[]>([]);
   const [judgeRounds, setJudgeRounds] = useState<JudgeRoundItem[]>([]);
   const [messages, setMessages] = useState<ChatItem[]>([
-    { role: "assistant", content: "欢迎进入轨迹讨论区，输入问题开始。" },
+    {
+      role: "assistant",
+      content: "\u6b22\u8fce\u8fdb\u5165\u8f68\u8ff9\u8ba8\u8bba\u533a\uff0c\u8f93\u5165\u95ee\u9898\u5373\u53ef\u5f00\u59cb\u3002",
+    },
   ]);
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -120,7 +172,11 @@ export function ChatWindow() {
     setEvaluation(null);
     setDebateRounds([]);
     setJudgeRounds([]);
-    setMessages((prev) => [...prev, { role: "user", content: message }, { role: "assistant", content: "正在进行多轮博弈..." }]);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: message },
+      { role: "assistant", content: "\u6b63\u5728\u8fdb\u884c\u8def\u5f84\u751f\u6210\u4e0e\u8ba8\u8bba\uff0c\u8bf7\u7a0d\u5019..." },
+    ]);
 
     try {
       const response = await fetch("/api/chat", {
@@ -132,7 +188,9 @@ export function ChatWindow() {
       if (!response.ok || !response.body) {
         const payload = await response.json().catch(() => ({}));
         replaceLastAssistant(
-          typeof payload?.message === "string" ? payload.message : "请求失败，请稍后重试。",
+          typeof payload?.message === "string"
+            ? payload.message
+            : "\u8bf7\u6c42\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002",
         );
         return;
       }
@@ -214,7 +272,11 @@ export function ChatWindow() {
             }
 
             if (parsed.event === "error") {
-              replaceLastAssistant(typeof payload.message === "string" ? payload.message : "执行失败，请重试。");
+              replaceLastAssistant(
+                typeof payload.message === "string"
+                  ? payload.message
+                  : "\u6267\u884c\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002",
+              );
               continue;
             }
 
@@ -222,12 +284,12 @@ export function ChatWindow() {
               appendToLastAssistant(payload.text);
             }
           } catch {
-            // ignore malformed payload
+            // Ignore malformed payload blocks
           }
         }
       }
     } catch {
-      replaceLastAssistant("网络异常，请稍后重试。");
+      replaceLastAssistant("\u7f51\u7edc\u5f02\u5e38\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002");
     } finally {
       setSending(false);
     }
@@ -244,71 +306,111 @@ export function ChatWindow() {
     formRef.current?.requestSubmit();
   };
 
+  const pathStage = statusToStage(pathStatus, "path");
+  const debateStage = statusToStage(debateStatus, "debate");
+  const overallProgress = Math.round((pathStage.progress + debateStage.progress) / 2);
+  const pathSummaries = PATH_KEYS.map((path) => {
+    const report = pathReports[path];
+    const summary = report?.final_hypothesis || report?.hypothesis;
+    if (report?.error) {
+      return { path, text: `\u5931\u8d25\uff1a${report.error}` };
+    }
+    if (summary) {
+      return { path, text: summary };
+    }
+    return { path, text: "\u6682\u65e0\u7ed3\u679c" };
+  });
+
+  const applyQuickPrompt = (prompt: string) => {
+    if (sending) return;
+    setInput(prompt);
+  };
+
   return (
-    <div className="grid h-[72dvh] min-h-[580px] grid-cols-[300px_1fr] gap-3">
-      <aside className="overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-sm">
+    <div className="grid h-[72dvh] min-h-[580px] grid-cols-[288px_1fr] gap-3">
+      <aside className="overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3 text-sm">
         <div className="space-y-3">
-          <div>
-            <p className="text-xs text-[var(--text-muted)]">状态</p>
-            <p>路径: {pathStatus}</p>
-            <p>轮次: {debateStatus}</p>
+          <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
+            <p className="text-xs font-medium text-[var(--text-muted)]">{"\u8fdb\u5ea6\u603b\u89c8"}</p>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${overallProgress}%` }} />
+            </div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">{`\u5f53\u524d\u8fdb\u5ea6 ${overallProgress}%`}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(pathStage.tone)}`}>
+                {"\u8def\u5f84\uff1a"}
+                {pathStage.label}
+              </span>
+              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(debateStage.tone)}`}>
+                {"\u8f6e\u6b21\uff1a"}
+                {debateStage.label}
+              </span>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">{pathStage.detail}</p>
+            <p className="text-xs leading-5 text-[var(--text-muted)]">{debateStage.detail}</p>
           </div>
 
           <div>
-            <p className="text-xs text-[var(--text-muted)]">路径报告</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{"\u8def\u5f84\u7ed3\u679c\u6458\u8981"}</p>
             {PATH_KEYS.map((path) => {
               const report = pathReports[path];
+              const summary = report?.final_hypothesis || report?.hypothesis;
               return (
-                <div key={path} className="mt-2 rounded border border-[var(--border)] p-2">
-                  <p className="text-xs text-[var(--text-muted)]">{PATH_LABELS[path]}</p>
-                  <p className="text-sm">
+                <div key={path} className="mt-2 rounded-md border border-[var(--border)] bg-white p-2.5">
+                  <p className="text-xs font-medium text-[var(--text-muted)]">{PATH_LABELS[path]}</p>
+                  <p className="mt-1 line-clamp-2 text-sm">
                     {report?.error
-                      ? `失败: ${report.error}`
-                      : report?.final_hypothesis || report?.hypothesis || "等待结果..."}
+                      ? `\u5931\u8d25\uff1a${report.error}`
+                      : summary || "\u7b49\u5f85\u7ed3\u679c..."}
                   </p>
-                  {typeof report?.confidence === "number" ? <p className="text-xs">置信度: {report.confidence}</p> : null}
+                  {typeof report?.confidence === "number" ? (
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">{`\u7f6e\u4fe1\u5ea6 ${report.confidence}`}</p>
+                  ) : null}
                 </div>
               );
             })}
           </div>
 
           {synthesis?.summary ? (
-            <div className="rounded border border-[var(--border)] p-2">
-              <p className="text-xs text-[var(--text-muted)]">综合</p>
-              <p>{synthesis.summary}</p>
+            <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{"\u7efc\u5408\u7ed3\u8bba"}</p>
+              <p className="mt-1 text-sm leading-6">{synthesis.summary}</p>
             </div>
           ) : null}
 
           {typeof evaluation?.score === "number" ? (
-            <div className="rounded border border-[var(--border)] p-2">
-              <p className="text-xs text-[var(--text-muted)]">评估分</p>
-              <p>{evaluation.score}</p>
-            </div>
-          ) : null}
-
-          {debateRounds.length > 0 ? (
-            <div className="rounded border border-[var(--border)] p-2">
-              <p className="text-xs text-[var(--text-muted)]">最近博弈</p>
-              {debateRounds.slice(-6).map((item, idx) => (
-                <p key={`d-${item.path}-${item.round}-${idx}`} className="text-xs">
-                  R{item.round} {PATH_LABELS[item.path]}:{" "}
-                  {item.error ? `失败-${item.error}` : `${item.coach?.hypothesis ?? "-"} | ${item.secondme ?? "-"}`}
-                </p>
-              ))}
-              {judgeRounds.slice(-6).map((item, idx) => (
-                <p key={`j-${item.path}-${item.round}-${idx}`} className="text-xs">
-                  J{item.round} {PATH_LABELS[item.path]}:{" "}
-                  {item.error
-                    ? `失败-${item.error}`
-                    : `score=${item.judge?.round_score ?? "-"}, verdict=${item.judge?.verdict ?? "-"}, gap=${item.judge?.critical_gap ?? "-"}`}
-                </p>
-              ))}
+            <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{"\u8bc4\u4f30\u5206"}</p>
+              <p className="mt-1 text-sm">{evaluation.score}</p>
             </div>
           ) : null}
         </div>
       </aside>
 
       <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+        <div className="border-b border-[var(--border)] bg-white px-3 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold tracking-tight">{"\u8f68\u8ff9\u5bf9\u8bdd"}</h2>
+            <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs text-[var(--text-muted)]">
+              {sessionId ? `\u4f1a\u8bdd ${sessionId.slice(0, 8)}...` : "\u65b0\u4f1a\u8bdd"}
+            </span>
+          </div>
+        </div>
+
+        <div className="border-b border-[var(--border)] bg-white px-3 py-2.5">
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+            {"\u8def\u5f84\u5dee\u5f02\u901f\u89c8"}
+          </p>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {pathSummaries.map((item) => (
+              <div key={item.path} className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-2">
+                <p className="text-xs font-medium text-[var(--text-muted)]">{PATH_LABELS[item.path]}</p>
+                <p className="mt-1 line-clamp-2 text-xs leading-5">{item.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div ref={messageListRef} className="flex-1 space-y-3 overflow-y-auto bg-[var(--surface-2)] p-3">
           {messages.map((item, idx) => (
             <div
@@ -325,10 +427,21 @@ export function ChatWindow() {
         </div>
 
         <form ref={formRef} onSubmit={onSubmit} className="border-t border-[var(--border)] bg-[var(--surface)] p-3">
+          <div className="mb-2 flex flex-wrap gap-2">
+            {QUICK_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => applyQuickPrompt(prompt)}
+                disabled={sending}
+                className="rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
           <div className="flex gap-2">
-            <label htmlFor="chat-input" className="sr-only">
-              输入消息
-            </label>
+            <label htmlFor="chat-input" className="sr-only">{"\u8f93\u5165\u6d88\u606f"}</label>
             <textarea
               id="chat-input"
               value={input}
@@ -336,8 +449,8 @@ export function ChatWindow() {
               onKeyDown={onInputKeyDown}
               disabled={sending}
               rows={2}
-              aria-label="聊天输入框"
-              placeholder="例如：如果我走跨学科方向，三年后最关键的能力差异是什么？"
+              aria-label={"\u804a\u5929\u8f93\u5165\u6846"}
+              placeholder={"\u4f8b\u5982\uff1a\u5982\u679c\u6211\u8d70\u8de8\u5b66\u79d1\u65b9\u5411\uff0c\u4e09\u5e74\u540e\u6700\u5173\u952e\u7684\u80fd\u529b\u5dee\u5f02\u662f\u4ec0\u4e48\uff1f"}
               className="flex-1 resize-none rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
             />
             <button
@@ -346,10 +459,15 @@ export function ChatWindow() {
               aria-busy={sending}
               className="rounded-lg bg-[#0f172a] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {sending ? "生成中..." : "发送"}
+              {sending ? "\u751f\u6210\u4e2d..." : "\u53d1\u9001"}
             </button>
           </div>
-          <p className="mt-2 text-xs text-[var(--text-muted)]">按 Enter 发送，Shift + Enter 换行</p>
+          <p className="mt-2 text-xs text-[var(--text-muted)]">{"\u6309 Enter \u53d1\u9001\uff0cShift + Enter \u6362\u884c"}</p>
+          {(debateRounds.length > 0 || judgeRounds.length > 0) && (
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              {`\u5df2\u6536\u96c6\u8fa9\u8bba ${debateRounds.length} \u6761\uff0c\u88c1\u5224 ${judgeRounds.length} \u6761`}
+            </p>
+          )}
         </form>
       </section>
     </div>
