@@ -113,6 +113,15 @@ function badgeClass(tone: StageMeta["tone"]) {
   return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
+function pickLatestByPath<T extends { path: PathKey }>(items: T[]) {
+  const latest: Partial<Record<PathKey, T>> = {};
+  for (let i = items.length - 1; i >= 0; i -= 1) {
+    const item = items[i];
+    if (!latest[item.path]) latest[item.path] = item;
+  }
+  return latest;
+}
+
 export function ChatWindow() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -156,11 +165,9 @@ export function ChatWindow() {
     });
   };
 
-  const onSubmit = async (event: FormEvent) => {
-    event.preventDefault();
+  const submitMessage = async (rawMessage: string) => {
     if (sending) return;
-
-    const message = input.trim();
+    const message = rawMessage.trim();
     if (!message) return;
 
     setInput("");
@@ -295,6 +302,11 @@ export function ChatWindow() {
     }
   };
 
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    await submitMessage(input);
+  };
+
   useEffect(() => {
     if (!messageListRef.current) return;
     messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
@@ -309,6 +321,9 @@ export function ChatWindow() {
   const pathStage = statusToStage(pathStatus, "path");
   const debateStage = statusToStage(debateStatus, "debate");
   const overallProgress = Math.round((pathStage.progress + debateStage.progress) / 2);
+  const latestDebateByPath = pickLatestByPath(debateRounds);
+  const latestJudgeByPath = pickLatestByPath(judgeRounds);
+  const failedPaths = PATH_KEYS.filter((path) => Boolean(pathReports[path]?.error));
   const pathSummaries = PATH_KEYS.map((path) => {
     const report = pathReports[path];
     const summary = report?.final_hypothesis || report?.hypothesis;
@@ -324,6 +339,15 @@ export function ChatWindow() {
   const applyQuickPrompt = (prompt: string) => {
     if (sending) return;
     setInput(prompt);
+  };
+  const retryFailedPaths = async () => {
+    if (sending || failedPaths.length === 0) return;
+    const target = failedPaths.map((path) => PATH_LABELS[path]).join("、");
+    await submitMessage(`请仅重试以下失败路径：${target}，并保持其余路径结果不变。`);
+  };
+  const regenerateComparison = async () => {
+    if (sending) return;
+    await submitMessage("请基于当前会话结果，重新生成三路径差异对比（结论、风险、行动建议）并给出排序。");
   };
 
   return (
@@ -398,16 +422,73 @@ export function ChatWindow() {
         </div>
 
         <div className="border-b border-[var(--border)] bg-white px-3 py-2.5">
-          <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
-            {"\u8def\u5f84\u5dee\u5f02\u901f\u89c8"}
-          </p>
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            {pathSummaries.map((item) => (
-              <div key={item.path} className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-2">
-                <p className="text-xs font-medium text-[var(--text-muted)]">{PATH_LABELS[item.path]}</p>
-                <p className="mt-1 line-clamp-2 text-xs leading-5">{item.text}</p>
-              </div>
-            ))}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+              {"\u8def\u5f84\u5dee\u5f02\u5bf9\u6bd4"}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={retryFailedPaths}
+                disabled={sending || failedPaths.length === 0}
+                className="rounded-md border border-[var(--danger)] bg-[var(--danger-soft)] px-2.5 py-1 text-xs font-medium text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {"\u91cd\u8bd5\u5931\u8d25\u8def\u5f84"}
+              </button>
+              <button
+                type="button"
+                onClick={regenerateComparison}
+                disabled={sending}
+                className="rounded-md border border-[var(--accent)] bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {"\u91cd\u65b0\u751f\u6210\u5bf9\u6bd4"}
+              </button>
+            </div>
+          </div>
+          <div className="mt-2 overflow-hidden rounded-md border border-[var(--border)]">
+            <div className="grid grid-cols-[120px_1fr_1fr_1fr] bg-[var(--surface-2)] text-xs font-medium text-[var(--text-muted)]">
+              <div className="border-r border-[var(--border)] px-2 py-1.5">{"\u7ef4\u5ea6"}</div>
+              {PATH_KEYS.map((path) => (
+                <div key={`head-${path}`} className="border-r border-[var(--border)] px-2 py-1.5 last:border-r-0">
+                  {PATH_LABELS[path]}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
+              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">{"\u7ed3\u8bba\u5dee\u5f02"}</div>
+              {pathSummaries.map((item) => (
+                <div key={`summary-${item.path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
+                  <p className="line-clamp-2">{item.text}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
+              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">{"\u98ce\u9669\u5dee\u5f02"}</div>
+              {PATH_KEYS.map((path) => {
+                const judgeGap = latestJudgeByPath[path]?.judge?.critical_gap;
+                const err = pathReports[path]?.error;
+                const text = err ? `\u5931\u8d25\uff1a${err}` : judgeGap || "\u6682\u65e0\u98ce\u9669\u5dee\u5f02\u8bf4\u660e";
+                return (
+                  <div key={`risk-${path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
+                    <p className="line-clamp-2">{text}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
+              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">{"\u884c\u52a8\u5efa\u8bae"}</div>
+              {PATH_KEYS.map((path) => {
+                const action = latestJudgeByPath[path]?.judge?.next_constraint || latestDebateByPath[path]?.coach?.hypothesis;
+                return (
+                  <div key={`action-${path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
+                    <p className="line-clamp-2">{action || "\u6682\u65e0\u884c\u52a8\u5efa\u8bae"}</p>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -434,12 +515,17 @@ export function ChatWindow() {
                 type="button"
                 onClick={() => applyQuickPrompt(prompt)}
                 disabled={sending}
-                className="rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs font-medium text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {prompt}
               </button>
             ))}
           </div>
+          {failedPaths.length > 0 ? (
+            <p className="mb-2 text-xs text-[var(--danger)]">
+              {`\u68c0\u6d4b\u5230 ${failedPaths.length} \u6761\u5931\u8d25\u8def\u5f84\uff0c\u53ef\u70b9\u51fb\u4e0a\u65b9\u201c\u91cd\u8bd5\u5931\u8d25\u8def\u5f84\u201d\u5feb\u901f\u6062\u590d\u3002`}
+            </p>
+          ) : null}
           <div className="flex gap-2">
             <label htmlFor="chat-input" className="sr-only">{"\u8f93\u5165\u6d88\u606f"}</label>
             <textarea
@@ -457,7 +543,7 @@ export function ChatWindow() {
               type="submit"
               disabled={sending}
               aria-busy={sending}
-              className="rounded-lg bg-[#0f172a] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-sm font-medium text-white transition-all hover:-translate-y-px hover:shadow-[0_6px_14px_rgba(0,102,204,0.24)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
             >
               {sending ? "\u751f\u6210\u4e2d..." : "\u53d1\u9001"}
             </button>

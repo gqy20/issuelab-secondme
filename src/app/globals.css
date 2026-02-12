@@ -9,6 +9,11 @@
   --border: #d4d9e2;
   --accent: #0a84ff;
   --accent-soft: #dbeafe;
+  --accent-strong: #0066cc;
+  --danger: #b42318;
+  --danger-soft: #fef3f2;
+  --success: #067647;
+  --success-soft: #ecfdf3;
   --text-muted: #4b5563;
   --warning: #b45309;
 }
