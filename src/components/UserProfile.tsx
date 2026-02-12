@@ -1,17 +1,10 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import { requestApi } from "@/lib/http";
 
-type UserInfoResult = {
-  code: number;
-  data?: { nickname?: string; bio?: string };
-  message?: string;
-};
-
-type ShadesResult = {
-  code: number;
-  data?: { shades?: string[] };
-};
+type UserInfoData = { nickname?: string; bio?: string };
+type ShadesData = { shades?: string[] };
 
 export function UserProfile() {
   const [loading, setLoading] = useState(true);
@@ -23,13 +16,10 @@ export function UserProfile() {
   useEffect(() => {
     const run = async () => {
       try {
-        const [infoResp, shadesResp] = await Promise.all([
-          fetch("/api/user/info", { cache: "no-store" }),
-          fetch("/api/user/shades", { cache: "no-store" }),
+        const [info, shadesResult] = await Promise.all([
+          requestApi<UserInfoData>("/api/user/info", { cache: "no-store" }),
+          requestApi<ShadesData>("/api/user/shades", { cache: "no-store" }),
         ]);
-
-        const info = (await infoResp.json()) as UserInfoResult;
-        const shadesJson = (await shadesResp.json()) as ShadesResult;
 
         if (info.code !== 0) {
           setError(info.message ?? "用户信息读取失败");
@@ -38,8 +28,11 @@ export function UserProfile() {
 
         setNickname(info.data?.nickname ?? "SecondMe 用户");
         setBio(info.data?.bio ?? "暂无简介");
-        setShades(Array.isArray(shadesJson.data?.shades) ? shadesJson.data!.shades! : []);
-      } catch {
+        setShades(
+          Array.isArray(shadesResult.data?.shades) ? shadesResult.data?.shades ?? [] : [],
+        );
+      } catch (error) {
+        console.error("Load user profile failed", error);
         setError("服务请求失败");
       } finally {
         setLoading(false);

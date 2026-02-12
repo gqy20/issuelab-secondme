@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
+import { requestApi } from "@/lib/http";
 
 type ChatItem = { role: "user" | "assistant"; content: string };
 
@@ -30,16 +31,15 @@ export function ChatWindow() {
     setSending(true);
 
     try {
-      const resp = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, sessionId }),
-      });
-      const result = (await resp.json()) as {
-        code: number;
-        data?: { reply?: string; sessionId?: string };
-        message?: string;
-      };
+      const result = await requestApi<{ reply?: string; sessionId?: string }>(
+        "/api/chat",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, sessionId }),
+        },
+        30000,
+      );
 
       if (result.data?.sessionId) {
         setSessionId(result.data.sessionId);
