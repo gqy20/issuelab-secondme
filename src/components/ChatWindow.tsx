@@ -454,12 +454,12 @@ export function ChatWindow() {
   };
 
   return (
-    <div className="grid min-h-[620px] grid-cols-1 gap-3 lg:grid-cols-[300px_1fr] xl:h-[76dvh] xl:max-h-[860px]">
-      <aside className="overflow-y-auto rounded-xl border border-[var(--border)] bg-[linear-gradient(180deg,#fbfdff_0%,#f7faff_100%)] p-3 text-sm">
+    <div className="grid min-h-[640px] grid-cols-1 gap-3 lg:grid-cols-[320px_1fr] xl:h-[78dvh] xl:max-h-[900px]">
+      <aside className="overflow-y-auto rounded-[var(--radius-md)] border border-[var(--border)] bg-[linear-gradient(180deg,rgba(20,30,48,0.85)_0%,rgba(16,24,40,0.7)_100%)] p-3 text-sm">
         <div className="space-y-3">
-          <div className="rounded-lg border border-[var(--border)] bg-white p-2.5 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
+          <div className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-2.5 shadow-[var(--shadow-soft)]">
             <p className="text-xs font-medium text-[var(--text-muted)]">流程总览</p>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-900/45">
               <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${overallProgress}%` }} />
             </div>
             <p className="mt-1 text-xs text-[var(--text-muted)]">{`当前进度 ${overallProgress}%`}</p>
@@ -471,7 +471,7 @@ export function ChatWindow() {
             <p className="text-xs leading-5 text-[var(--text-muted)]">{debateStage.detail}</p>
           </div>
 
-          <div className="rounded-lg border border-[var(--border)] bg-white p-2.5 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
+          <div className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-2.5 shadow-[var(--shadow-soft)]">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">路径状态</p>
             {isAllPathIdle ? (
               <p className="mt-2 text-xs text-[var(--text-muted)]">发送首条问题后开始运行</p>
@@ -493,7 +493,7 @@ export function ChatWindow() {
                 const report = pathReports[path];
                 const summary = report?.final_hypothesis || report?.hypothesis;
                 return (
-                  <div key={path} className={`mt-2 rounded-lg border bg-white p-2.5 shadow-[0_4px_12px_rgba(15,23,42,0.04)] ${pathBadgeClass(path)}`}>
+                  <div key={path} className={`mt-2 rounded-[var(--radius-sm)] border bg-[var(--surface-2)] p-2.5 shadow-[var(--shadow-soft)] ${pathBadgeClass(path)}`}>
                     <p className="text-xs font-medium text-[var(--text-muted)]">{PATH_LABELS[path]}</p>
                     <p className="mt-1 line-clamp-2 text-sm text-[var(--foreground)]">
                       {report?.error ? `失败：${report.error}` : summary || "等待结果..."}
@@ -506,13 +506,13 @@ export function ChatWindow() {
               })}
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-[var(--border)] bg-white p-3 text-xs leading-5 text-[var(--text-muted)]">
+            <div className="rounded-[var(--radius-sm)] border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-3 text-xs leading-5 text-[var(--text-muted)]">
               首次提问后，这里会展示每条路径的阶段状态和摘要。
             </div>
           )}
 
           {synthesis?.summary ? (
-            <div className="rounded-lg border border-[var(--border)] bg-white p-2.5 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
+            <div className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-2.5 shadow-[var(--shadow-soft)]">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">综合结论</p>
               <p className="mt-1 text-sm leading-6">{synthesis.summary}</p>
               {synthesis.recommendation ? (
@@ -522,7 +522,7 @@ export function ChatWindow() {
           ) : null}
 
           {typeof evaluation?.score === "number" ? (
-            <div className="rounded-lg border border-[var(--border)] bg-white p-2.5 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
+            <div className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-2.5 shadow-[var(--shadow-soft)]">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">评估分</p>
               <p className="mt-1 text-sm">{evaluation.score}</p>
             </div>
@@ -530,20 +530,20 @@ export function ChatWindow() {
         </div>
       </aside>
 
-      <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
-        <div className="border-b border-[var(--border)] bg-[linear-gradient(180deg,#ffffff_0%,#f9fbff_100%)] px-3 py-2.5">
+      <section className="flex min-h-0 flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[linear-gradient(180deg,rgba(17,25,40,0.9)_0%,rgba(12,18,32,0.9)_100%)]">
+        <div className="border-b border-[var(--border)] bg-[linear-gradient(120deg,rgba(20,31,52,0.75)_0%,rgba(17,25,40,0.72)_100%)] px-4 py-3">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <h2 className="text-sm font-semibold tracking-tight">轨迹对话</h2>
+              <h2 className="font-display text-base font-semibold tracking-tight">轨迹对话</h2>
               <p className="text-xs text-[var(--text-muted)]">先提问，再对比三条路径的结论与风险差异。</p>
             </div>
-            <span className="rounded-full border border-[var(--border)] bg-white px-2.5 py-1 text-xs text-[var(--text-muted)]">
+            <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs text-[var(--text-muted)]">
               {sessionId ? `会话 ${sessionId.slice(0, 8)}...` : "新会话"}
             </span>
           </div>
         </div>
 
-        <div className="border-b border-[var(--border)] bg-[linear-gradient(180deg,#ffffff_0%,#f8faff_100%)] px-3 py-2.5">
+        <div className="border-b border-[var(--border)] bg-[linear-gradient(180deg,rgba(18,28,46,0.9)_0%,rgba(15,24,40,0.88)_100%)] px-4 py-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">路径差异矩阵</p>
             <div className="flex items-center gap-2">
@@ -567,8 +567,8 @@ export function ChatWindow() {
           </div>
 
           {hasPathOutput ? (
-            <div className="mt-2 overflow-hidden rounded-lg border border-[var(--border)]">
-              <div className="grid grid-cols-[120px_1fr_1fr_1fr] bg-[var(--surface-2)] text-xs font-medium text-[var(--text-muted)]">
+            <div className="mt-2 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--border)] bg-[rgba(10,16,30,0.35)]">
+              <div className="grid grid-cols-[120px_1fr_1fr_1fr] bg-[rgba(25,40,64,0.74)] text-xs font-medium text-[var(--text-muted)]">
                 <div className="border-r border-[var(--border)] px-2 py-1.5">维度</div>
                 {PATH_KEYS.map((path) => (
                   <div
@@ -581,22 +581,22 @@ export function ChatWindow() {
               </div>
 
               <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-                <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">结论差异</div>
+                <div className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 font-medium">结论差异</div>
                 {pathSummaries.map((item) => (
-                  <div key={`summary-${item.path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
+                  <div key={`summary-${item.path}`} className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 leading-5 last:border-r-0">
                     <p className="line-clamp-2">{item.text}</p>
                   </div>
                 ))}
               </div>
 
               <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-                <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">风险差异</div>
+                <div className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 font-medium">风险差异</div>
                 {PATH_KEYS.map((path) => {
                   const judgeGap = latestJudgeByPath[path]?.judge?.critical_gap;
                   const err = pathReports[path]?.error;
                   const text = err ? `失败：${err}` : judgeGap || "暂无显式风险差异";
                   return (
-                    <div key={`risk-${path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
+                    <div key={`risk-${path}`} className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 leading-5 last:border-r-0">
                       <p className="line-clamp-2">{text}</p>
                     </div>
                   );
@@ -604,11 +604,11 @@ export function ChatWindow() {
               </div>
 
               <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-                <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">行动建议</div>
+                <div className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 font-medium">行动建议</div>
                 {PATH_KEYS.map((path) => {
                   const action = latestJudgeByPath[path]?.judge?.next_constraint || latestDebateByPath[path]?.coach?.hypothesis;
                   return (
-                    <div key={`action-${path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
+                    <div key={`action-${path}`} className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 leading-5 last:border-r-0">
                       <p className="line-clamp-2">{action || "暂无行动建议"}</p>
                     </div>
                   );
@@ -616,7 +616,7 @@ export function ChatWindow() {
               </div>
             </div>
           ) : (
-            <div className="mt-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text-muted)]">
+            <div className="mt-2 rounded-[var(--radius-sm)] border border-dashed border-[var(--border)] bg-[rgba(11,17,29,0.58)] px-3 py-2 text-xs text-[var(--text-muted)]">
               还没有可对比内容。请先发送一个问题，系统会生成三路径差异矩阵。
             </div>
           )}
@@ -624,13 +624,13 @@ export function ChatWindow() {
 
         <div
           ref={messageListRef}
-          className={`flex-1 overflow-y-auto bg-[linear-gradient(180deg,#f9fbff_0%,#f5f8fd_100%)] p-3 ${
+          className={`flex-1 overflow-y-auto bg-[linear-gradient(180deg,rgba(11,17,29,0.8)_0%,rgba(10,15,26,0.9)_100%)] p-4 ${
             isInitialState ? "grid place-items-center" : "space-y-3"
           }`}
         >
           {isInitialState ? (
-            <div className="w-full max-w-xl rounded-2xl border border-[var(--border)] bg-white/95 p-6 text-center shadow-[0_12px_28px_rgba(15,23,42,0.08)]">
-              <p className="text-sm font-semibold text-slate-900">欢迎进入多路径讨论区</p>
+            <div className="w-full max-w-2xl rounded-[var(--radius-md)] border border-[var(--border)] bg-[linear-gradient(180deg,rgba(19,31,50,0.88)_0%,rgba(16,24,40,0.88)_100%)] p-8 text-center shadow-[var(--shadow-mid)]">
+              <p className="font-display text-xl font-semibold tracking-tight text-white">欢迎进入多路径讨论区</p>
               <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
                 提一个明确问题，系统会自动生成三条路径并给出差异对比。
               </p>
@@ -642,7 +642,7 @@ export function ChatWindow() {
                 className={`max-w-[80%] rounded-lg px-3 py-2 text-sm leading-6 ${
                   item.role === "user"
                     ? "ml-auto bg-[var(--accent-strong)] text-white"
-                    : "border border-[var(--border)] bg-white text-[var(--foreground)] shadow-[0_4px_10px_rgba(15,23,42,0.04)]"
+                    : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--foreground)] shadow-[var(--shadow-soft)]"
                 }`}
               >
                 {item.role === "assistant" ? (
@@ -655,7 +655,7 @@ export function ChatWindow() {
           )}
         </div>
 
-        <form ref={formRef} onSubmit={onSubmit} className="border-t border-[var(--border)] bg-[var(--surface)] p-3">
+        <form ref={formRef} onSubmit={onSubmit} className="border-t border-[var(--border)] bg-[linear-gradient(180deg,rgba(20,31,52,0.78)_0%,rgba(15,24,40,0.82)_100%)] p-4">
           <div className="mb-2 flex flex-wrap gap-2">
             {QUICK_PROMPTS.map((prompt) => (
               <button
@@ -688,7 +688,7 @@ export function ChatWindow() {
               rows={2}
               aria-label="聊天输入框"
               placeholder="例如：如果我走跨学科方向，三年后最关键的能力差异是什么？"
-              className="flex-1 resize-none rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-all focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
+              className="flex-1 resize-none rounded-[var(--radius-sm)] border border-[var(--border)] bg-[rgba(11,17,29,0.82)] px-3 py-2 text-sm outline-none transition-all focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
             />
             <button
               type="submit"

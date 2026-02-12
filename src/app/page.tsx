@@ -1,42 +1,44 @@
-﻿import { ChatWindow } from "@/components/ChatWindow";
+import { ChatWindow } from "@/components/ChatWindow";
 import { LoginButton } from "@/components/LoginButton";
 import { UserProfile } from "@/components/UserProfile";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[radial-gradient(1200px_420px_at_72%_-16%,#d9e8ff_0%,rgba(217,232,255,0)_65%),linear-gradient(180deg,#f7f9fc_0%,#f2f6fb_100%)] px-4 py-8 md:px-8">
-      <main className="mx-auto w-full max-w-[1440px]">
-        <section className="grid grid-cols-1 gap-4 lg:grid-cols-[312px_1fr]">
-          <aside className="sticky top-8 h-fit space-y-4">
-            <div className="rounded-2xl border border-[var(--border)] bg-[linear-gradient(180deg,#ffffff_0%,#f7fbff_100%)] p-5 shadow-[0_14px_32px_rgba(13,94,215,0.12)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">IssueLab x SecondMe</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">学术道路探索台</h1>
-              <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
-                在同一问题下并行调用多个 SecondMe 轨迹分身，对比观点差异，记录讨论过程，并沉淀为可追溯笔记。
+    <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+      <main className="mx-auto w-full max-w-[1520px] space-y-4">
+        <header className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[linear-gradient(120deg,rgba(9,26,46,0.92)_0%,rgba(12,33,58,0.84)_50%,rgba(15,40,68,0.84)_100%)] px-5 py-4 shadow-[var(--shadow-soft)] backdrop-blur-xl md:px-7 md:py-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="font-display text-xs font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">IssueLab x SecondMe</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">ѧ����·̽��̨</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-muted)] md:text-base">
+                ��ͬһ���Ⲣ��������������·����ѹ��̽��ʱ�䣬�����ִ�н��ۡ�
               </p>
-              <p className="mt-3 inline-flex items-center rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent-strong)]">
-                多路径辩论模式
-              </p>
-              <div className="mt-4">
-                <LoginButton />
-              </div>
+            </div>
+            <p className="inline-flex items-center rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[#d7f0ff]">
+              Research Control Room
+            </p>
+          </div>
+        </header>
+
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-[288px_1fr]">
+          <aside className="space-y-4">
+            <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)] backdrop-blur-xl">
+              <LoginButton />
             </div>
 
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[0_3px_10px_rgba(15,23,42,0.05)]">
+            <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)] backdrop-blur-xl">
               <UserProfile />
             </div>
 
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[0_3px_10px_rgba(15,23,42,0.05)]">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">使用建议</h2>
-              <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--text-muted)]">
-                <li>先提出一个明确问题，再观察三条路径的差异。</li>
-                <li>关注左侧状态，等待路径系统与辩论轮次完成。</li>
-                <li>对比结果后继续追问，逐步收敛到可执行结论。</li>
-              </ul>
+            <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-2)] p-4 text-sm leading-6 text-[var(--text-muted)] shadow-[var(--shadow-soft)] backdrop-blur-xl">
+              <p className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">ʹ�ý���</p>
+              <p className="mt-2">��������ȷ���⣬�ٲ鿴��·�����ۡ����պ��ж����顣</p>
+              <p className="mt-2">������ֺ󣬼���׷�ʹؼ����磬ֱ����������ִ�о��ߡ�</p>
             </div>
           </aside>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[0_20px_36px_rgba(15,23,42,0.09)] md:p-5">
+          <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-mid)] backdrop-blur-xl md:p-4">
             <ChatWindow />
           </div>
         </section>

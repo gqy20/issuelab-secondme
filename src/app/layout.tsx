@@ -1,19 +1,32 @@
-ï»¿import type { Metadata } from "next";
+import type { Metadata } from "next";
+import { IBM_Plex_Sans_SC, Space_Grotesk } from "next/font/google";
 import "./globals.css";
+
+const bodyFont = IBM_Plex_Sans_SC({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-body",
+});
+
+const displayFont = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-display",
+});
 
 export const metadata: Metadata = {
   title: "IssueLab x SecondMe",
-  description: "IssueLab çš„ SecondMe è½¨è¿¹è®¨è®ºå®éªŒå°",
+  description: "IssueLab µÄ SecondMe ¹ì¼£ÌÖÂÛÊµÑéÌ¨",
   openGraph: {
     title: "IssueLab x SecondMe",
-    description: "IssueLab çš„ SecondMe è½¨è¿¹è®¨è®ºå®éªŒå°",
+    description: "IssueLab µÄ SecondMe ¹ì¼£ÌÖÂÛÊµÑéÌ¨",
     type: "website",
     locale: "zh_CN",
   },
   twitter: {
     card: "summary",
     title: "IssueLab x SecondMe",
-    description: "IssueLab çš„ SecondMe è½¨è¿¹è®¨è®ºå®éªŒå°",
+    description: "IssueLab µÄ SecondMe ¹ì¼£ÌÖÂÛÊµÑéÌ¨",
   },
 };
 
@@ -24,7 +37,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className="antialiased">{children}</body>
+      <body className={`${bodyFont.variable} ${displayFont.variable} antialiased`}>{children}</body>
     </html>
   );
 }

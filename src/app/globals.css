@@ -1,27 +1,32 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3f6fb;
-  --foreground: #0f172a;
-  --surface: #ffffff;
-  --surface-2: #f7f9fc;
-  --surface-hover: #edf2f8;
-  --border: #cfd7e3;
-  --accent: #1677ff;
-  --accent-soft: #e7f0ff;
-  --accent-strong: #0d5ed7;
-  --danger: #b42318;
-  --danger-soft: #fef3f2;
-  --success: #067647;
-  --success-soft: #ecfdf3;
-  --text-muted: #475569;
-  --warning: #b45309;
-  --path-radical: #d9480f;
-  --path-radical-soft: #fff4eb;
-  --path-conservative: #1565c0;
-  --path-conservative-soft: #e9f3ff;
-  --path-cross: #0f766e;
-  --path-cross-soft: #e8faf6;
+  --background: #090f1a;
+  --foreground: #eaf1ff;
+  --surface: rgba(17, 25, 40, 0.8);
+  --surface-2: rgba(23, 33, 52, 0.72);
+  --surface-hover: rgba(31, 46, 72, 0.9);
+  --border: rgba(147, 176, 226, 0.24);
+  --accent: #53b1fd;
+  --accent-soft: rgba(83, 177, 253, 0.2);
+  --accent-strong: #0ba5ec;
+  --danger: #f97066;
+  --danger-soft: rgba(249, 112, 102, 0.14);
+  --success: #32d583;
+  --success-soft: rgba(50, 213, 131, 0.14);
+  --text-muted: #b6c7e5;
+  --warning: #fdb022;
+  --path-radical: #fb7185;
+  --path-radical-soft: rgba(251, 113, 133, 0.2);
+  --path-conservative: #38bdf8;
+  --path-conservative-soft: rgba(56, 189, 248, 0.2);
+  --path-cross: #22d3ee;
+  --path-cross-soft: rgba(34, 211, 238, 0.18);
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 24px;
+  --shadow-soft: 0 12px 28px rgba(2, 6, 23, 0.28);
+  --shadow-mid: 0 18px 42px rgba(2, 6, 23, 0.35);
 }
 
 @theme inline {
@@ -29,13 +34,29 @@
   --color-foreground: var(--foreground);
 }
 
+* {
+  border-color: var(--border);
+}
+
 body {
-  background: var(--background);
+  min-height: 100vh;
   color: var(--foreground);
-  font-family: "SF Pro Text", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-body), "PingFang SC", "Microsoft YaHei", sans-serif;
+  background:
+    radial-gradient(circle at 8% -8%, rgba(34, 211, 238, 0.22), transparent 35%),
+    radial-gradient(circle at 84% -12%, rgba(83, 177, 253, 0.2), transparent 38%),
+    radial-gradient(circle at 50% 120%, rgba(12, 74, 110, 0.28), transparent 50%),
+    linear-gradient(180deg, #0a1220 0%, #09101b 48%, #070d18 100%);
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display), var(--font-body), sans-serif;
 }
 
 ::selection {
   background: var(--accent-soft);
-  color: var(--accent-strong);
+  color: #f8fbff;
 }
