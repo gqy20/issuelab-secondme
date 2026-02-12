@@ -36,9 +36,9 @@ type DebateRoundItem = {
 const PATH_KEYS: PathKey[] = ["radical", "conservative", "cross_domain"];
 
 const PATH_LABELS: Record<PathKey, string> = {
-  radical: "Radical",
-  conservative: "Conservative",
-  cross_domain: "Cross-domain",
+  radical: "激进路径",
+  conservative: "稳健路径",
+  cross_domain: "跨域路径",
 };
 
 const INITIAL_EXPANDED_PATHS: Record<PathKey, boolean> = {
@@ -67,15 +67,15 @@ function parseSseBlock(block: string): SseEvent | null {
 function getStatusLabel(status: string) {
   switch (status) {
     case "running":
-      return "Running";
+      return "进行中";
     case "done":
-      return "Done";
+      return "已完成";
     case "partial_failed":
-      return "Partially failed";
+      return "部分失败";
     case "failed":
-      return "Failed";
+      return "失败";
     case "idle":
-      return "Idle";
+      return "待开始";
     default:
       return status;
   }
@@ -103,7 +103,7 @@ export function ChatWindow() {
   const [messages, setMessages] = useState<ChatItem[]>([
     {
       role: "assistant",
-      content: "Welcome to trajectory discussion. Enter a question to start exploring.",
+      content: "欢迎进入轨迹讨论区，输入你的问题开始探索。",
     },
   ]);
 
@@ -158,7 +158,7 @@ export function ChatWindow() {
         const msg =
           typeof payload?.message === "string"
             ? payload.message
-            : "Chat request failed. Please try again later.";
+            : "聊天请求失败，请稍后重试。";
         appendToLastAssistant(msg);
         return;
       }
@@ -194,7 +194,7 @@ export function ChatWindow() {
 
             if (parsed.event === "error") {
               appendToLastAssistant(
-                typeof payload.message === "string" ? payload.message : "Chat stream interrupted. Please retry.",
+                typeof payload.message === "string" ? payload.message : "聊天流中断，请稍后重试。",
               );
               continue;
             }
@@ -253,7 +253,7 @@ export function ChatWindow() {
         }
       }
     } catch {
-      appendToLastAssistant("Network error. Please try again later.");
+      appendToLastAssistant("网络异常，请稍后重试。");
     } finally {
       setSending(false);
     }
@@ -274,37 +274,37 @@ export function ChatWindow() {
     <div className="flex h-[70dvh] min-h-[560px] max-h-[800px] flex-col">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Trajectory Chat</h2>
+          <h2 className="text-xl font-semibold tracking-tight">轨迹对话</h2>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            Ask one question and compare perspective divergence across multiple paths.
+            输入问题并行触发多条路径，实时比较观点分歧。
           </p>
         </div>
         <span className="rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--text-muted)]">
-          {sessionId ? `Session ${sessionId.slice(0, 8)}...` : "New session"}
+          {sessionId ? `会话 ${sessionId.slice(0, 8)}...` : "新会话"}
         </span>
       </div>
 
-      <div className="mt-4 grid min-h-0 flex-1 gap-3 xl:grid-cols-[300px,minmax(0,1fr)]">
+      <div className="mt-4 grid min-h-0 flex-1 gap-3 lg:grid-cols-[300px,minmax(0,1fr)]">
         <aside className="min-h-0 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
           <div className="space-y-3 text-sm">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Pipeline status</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">流程状态</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <span
                   className={`rounded-full border px-2 py-1 text-xs font-medium ${getStatusClass(pathStatus)}`}
                 >
-                  Path engine: {getStatusLabel(pathStatus)}
+                  路径系统：{getStatusLabel(pathStatus)}
                 </span>
                 <span
                   className={`rounded-full border px-2 py-1 text-xs font-medium ${getStatusClass(debateStatus)}`}
                 >
-                  Debate rounds: {getStatusLabel(debateStatus)}
+                  辩论轮次：{getStatusLabel(debateStatus)}
                 </span>
               </div>
             </div>
 
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Path reports</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">路径结果</p>
               <div className="mt-2 space-y-2">
                 {PATH_KEYS.map((key) => {
                   const report = pathReports[key];
@@ -319,25 +319,25 @@ export function ChatWindow() {
                         aria-expanded={expanded}
                       >
                         <span className="text-xs font-medium text-[var(--text-muted)]">{PATH_LABELS[key]}</span>
-                        <span className="text-xs text-[var(--accent)]">{expanded ? "Collapse" : "Expand"}</span>
+                        <span className="text-xs text-[var(--accent)]">{expanded ? "收起" : "展开"}</span>
                       </button>
 
                       <p className="mt-1 text-sm font-medium leading-6">
                         {report?.error
-                          ? `Failed: ${report.error}`
+                          ? `失败：${report.error}`
                           : report?.hypothesis
                             ? report.hypothesis
-                            : "Waiting for result..."}
+                            : "等待结果..."}
                       </p>
 
                       {expanded ? (
                         <div className="mt-2 space-y-2 border-t border-[var(--border)] pt-2 text-xs leading-5 text-[var(--text-muted)]">
-                          {report?.why ? <p>Reasoning: {report.why}</p> : null}
-                          {report?.test_plan ? <p>Test plan: {report.test_plan}</p> : null}
-                          {report?.risk_guardrail ? <p>Risk guardrail: {report.risk_guardrail}</p> : null}
+                          {report?.why ? <p>形成原因：{report.why}</p> : null}
+                          {report?.test_plan ? <p>验证计划：{report.test_plan}</p> : null}
+                          {report?.risk_guardrail ? <p>风险护栏：{report.risk_guardrail}</p> : null}
                           {report?.next_steps && report.next_steps.length > 0 ? (
                             <div>
-                              <p>Next steps:</p>
+                              <p>下一步：</p>
                               <ul className="mt-1 list-disc pl-5">
                                 {report.next_steps.map((step) => (
                                   <li key={step}>{step}</li>
@@ -345,7 +345,7 @@ export function ChatWindow() {
                               </ul>
                             </div>
                           ) : null}
-                          {!report ? <p>No detail available yet.</p> : null}
+                          {!report ? <p>暂无详细内容。</p> : null}
                         </div>
                       ) : null}
                     </div>
@@ -356,28 +356,28 @@ export function ChatWindow() {
 
             {synthesis?.summary ? (
               <div className="rounded-lg border border-[var(--border)] bg-white p-2.5">
-                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Synthesis</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">综合建议</p>
                 <p className="mt-1 text-sm leading-6">{synthesis.summary}</p>
               </div>
             ) : null}
 
             {typeof evaluation?.score === "number" ? (
               <div className="rounded-lg border border-[var(--border)] bg-white p-2.5">
-                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Evaluation</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">评估分</p>
                 <p className="mt-1 text-sm">{evaluation.score}</p>
               </div>
             ) : null}
 
             {debateRounds.length > 0 ? (
               <div className="rounded-lg border border-[var(--border)] bg-white p-2.5">
-                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Recent rounds</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">最近辩论</p>
                 <div className="mt-2 space-y-1.5 text-xs leading-5 text-[var(--text-muted)]">
                   {debateRounds.slice(-6).map((item, idx) => (
                     <p key={`${item.path}-${item.round}-${idx}`}>
-                      R{item.round} {PATH_LABELS[item.path]}:
+                      R{item.round} {PATH_LABELS[item.path]}：
                       {item.error
-                        ? ` Failed - ${item.error}`
-                        : ` ${item.coach?.hypothesis ?? "No hypothesis"} | ${item.secondme ?? "No response"}`}
+                        ? `失败 - ${item.error}`
+                        : `${item.coach?.hypothesis ?? "暂无假设"} | ${item.secondme ?? "暂无回复"}`}
                     </p>
                   ))}
                 </div>
@@ -390,7 +390,7 @@ export function ChatWindow() {
           <div
             ref={messageListRef}
             aria-live="polite"
-            aria-label="Chat message list"
+            aria-label="聊天消息列表"
             className="flex-1 space-y-3 overflow-y-auto p-3"
           >
             {messages.map((item, idx) => (
@@ -410,7 +410,7 @@ export function ChatWindow() {
           <form ref={formRef} onSubmit={onSubmit} className="border-t border-[var(--border)] bg-white p-3">
             <div className="flex gap-2">
               <label htmlFor="chat-input" className="sr-only">
-                Enter message
+                输入消息
               </label>
               <textarea
                 id="chat-input"
@@ -419,8 +419,8 @@ export function ChatWindow() {
                 onKeyDown={onInputKeyDown}
                 disabled={sending}
                 rows={2}
-                aria-label="Chat input"
-                placeholder="Example: If I switch to a cross-disciplinary path, what capability gap matters most in 3 years?"
+                aria-label="聊天输入框"
+                placeholder="例如：如果我走跨学科方向，三年后最关键的能力差异是什么？"
                 className="flex-1 resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
               />
               <button
@@ -429,10 +429,10 @@ export function ChatWindow() {
                 aria-busy={sending}
                 className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {sending ? "Generating..." : "Send"}
+                {sending ? "生成中..." : "发送"}
               </button>
             </div>
-            <p className="mt-2 text-xs text-[var(--text-muted)]">Press Enter to send, Shift + Enter for newline</p>
+            <p className="mt-2 text-xs text-[var(--text-muted)]">按 Enter 发送，Shift + Enter 换行</p>
           </form>
         </section>
       </div>
