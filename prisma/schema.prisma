@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String          @id @default(cuid())
+  secondmeUserId String          @unique @map("secondme_user_id")
+  accessToken    String          @map("access_token")
+  refreshToken   String          @map("refresh_token")
+  tokenExpiresAt DateTime        @map("token_expires_at")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  profile        ProfileSnapshot?
+  chatSessions   ChatSession[]
+  notes          UserNote[]
+
+  @@map("users")
+}
+
+model ProfileSnapshot {
+  id         String   @id @default(cuid())
+  userId     String   @unique @map("user_id")
+  nickname   String?
+  avatar     String?
+  shadesJson String?  @map("shades_json")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profile_snapshots")
+}
+
+model ChatSession {
+  id          String        @id @default(cuid())
+  userId      String        @map("user_id")
+  title       String        @default("新建讨论")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatMessage ChatMessage[]
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  sessionId String      @map("session_id")
+  role      MessageRole
+  content   String
+  createdAt DateTime    @default(now()) @map("created_at")
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+}
+
+model UserNote {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_notes")
+}
+
+enum MessageRole {
+  user
+  assistant
+}
