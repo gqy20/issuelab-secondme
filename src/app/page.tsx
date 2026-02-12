@@ -1,4 +1,5 @@
-﻿import { ChatWindow } from "@/components/ChatWindow";
+import Link from "next/link";
+import { ChatWindow } from "@/components/ChatWindow";
 import { LoginButton } from "@/components/LoginButton";
 import { UserProfile } from "@/components/UserProfile";
 
@@ -17,6 +18,14 @@ export default function Home() {
               <p className="mt-3 inline-flex items-center rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[#d7f0ff]">
                 Research Control Room
               </p>
+              <div className="mt-3">
+                <Link
+                  href="/forum"
+                  className="inline-flex items-center rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  进入论坛控制台
+                </Link>
+              </div>
             </div>
 
             <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)] backdrop-blur-xl">
