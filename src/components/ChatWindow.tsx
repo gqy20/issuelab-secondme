@@ -1,6 +1,8 @@
 ﻿"use client";
 
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type ChatItem = { role: "user" | "assistant"; content: string };
 type SseEvent = { event: string; data: string };
@@ -148,6 +150,62 @@ function pickLatestByPath<T extends { path: PathKey }>(items: T[]) {
     if (!latest[item.path]) latest[item.path] = item;
   }
   return latest;
+}
+
+function MarkdownContent({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+        ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
+        ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>,
+        li: ({ children }) => <li>{children}</li>,
+        h1: ({ children }) => <h1 className="mb-2 text-base font-semibold">{children}</h1>,
+        h2: ({ children }) => <h2 className="mb-2 text-sm font-semibold">{children}</h2>,
+        h3: ({ children }) => <h3 className="mb-2 text-sm font-semibold">{children}</h3>,
+        blockquote: ({ children }) => (
+          <blockquote className="mb-2 border-l-2 border-slate-300 pl-3 text-[var(--text-muted)]">{children}</blockquote>
+        ),
+        code: ({ className, children, ...props }) => {
+          const isInline = !className?.includes("language-");
+          if (isInline) {
+            return (
+              <code className="rounded bg-slate-100 px-1 py-0.5 text-[13px] text-slate-800" {...props}>
+                {children}
+              </code>
+            );
+          }
+          return (
+            <code className="block overflow-x-auto rounded-md bg-slate-900 p-3 text-[13px] text-slate-100" {...props}>
+              {children}
+            </code>
+          );
+        },
+        pre: ({ children }) => <pre className="mb-2 last:mb-0">{children}</pre>,
+        a: ({ href, children }) => (
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-[var(--accent-strong)] underline underline-offset-2"
+          >
+            {children}
+          </a>
+        ),
+        table: ({ children }) => (
+          <div className="mb-2 overflow-x-auto last:mb-0">
+            <table className="min-w-full border-collapse text-left text-[13px]">{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => <thead className="bg-slate-100">{children}</thead>,
+        th: ({ children }) => <th className="border border-slate-300 px-2 py-1 font-semibold">{children}</th>,
+        td: ({ children }) => <td className="border border-slate-300 px-2 py-1 align-top">{children}</td>,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
 }
 
 export function ChatWindow() {
@@ -372,6 +430,11 @@ export function ChatWindow() {
     () => pathSummaries.some((item) => item.text !== "暂无结果"),
     [pathSummaries],
   );
+  const isInitialState =
+    messages.length === 1 &&
+    messages[0]?.role === "assistant" &&
+    messages[0]?.content === DEFAULT_ASSISTANT_TEXT &&
+    !sending;
 
   const applyQuickPrompt = (prompt: string) => {
     if (sending) return;
@@ -391,7 +454,7 @@ export function ChatWindow() {
   };
 
   return (
-    <div className="grid h-[74dvh] min-h-[620px] grid-cols-1 gap-3 lg:grid-cols-[300px_1fr]">
+    <div className="grid min-h-[620px] grid-cols-1 gap-3 lg:grid-cols-[300px_1fr] xl:h-[76dvh] xl:max-h-[860px]">
       <aside className="overflow-y-auto rounded-xl border border-[var(--border)] bg-[linear-gradient(180deg,#fbfdff_0%,#f7faff_100%)] p-3 text-sm">
         <div className="space-y-3">
           <div className="rounded-lg border border-[var(--border)] bg-white p-2.5 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
@@ -559,19 +622,37 @@ export function ChatWindow() {
           )}
         </div>
 
-        <div ref={messageListRef} className="flex-1 space-y-3 overflow-y-auto bg-[linear-gradient(180deg,#f9fbff_0%,#f5f8fd_100%)] p-3">
-          {messages.map((item, idx) => (
-            <div
-              key={`${item.role}-${idx}`}
-              className={`max-w-[80%] rounded-lg px-3 py-2 text-sm leading-6 ${
-                item.role === "user"
-                  ? "ml-auto bg-[var(--accent-strong)] text-white"
-                  : "border border-[var(--border)] bg-white text-[var(--foreground)] shadow-[0_4px_10px_rgba(15,23,42,0.04)]"
-              }`}
-            >
-              {item.content || (sending && idx === messages.length - 1 ? "..." : "")}
+        <div
+          ref={messageListRef}
+          className={`flex-1 overflow-y-auto bg-[linear-gradient(180deg,#f9fbff_0%,#f5f8fd_100%)] p-3 ${
+            isInitialState ? "grid place-items-center" : "space-y-3"
+          }`}
+        >
+          {isInitialState ? (
+            <div className="w-full max-w-xl rounded-2xl border border-[var(--border)] bg-white/95 p-6 text-center shadow-[0_12px_28px_rgba(15,23,42,0.08)]">
+              <p className="text-sm font-semibold text-slate-900">欢迎进入多路径讨论区</p>
+              <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
+                提一个明确问题，系统会自动生成三条路径并给出差异对比。
+              </p>
             </div>
-          ))}
+          ) : (
+            messages.map((item, idx) => (
+              <div
+                key={`${item.role}-${idx}`}
+                className={`max-w-[80%] rounded-lg px-3 py-2 text-sm leading-6 ${
+                  item.role === "user"
+                    ? "ml-auto bg-[var(--accent-strong)] text-white"
+                    : "border border-[var(--border)] bg-white text-[var(--foreground)] shadow-[0_4px_10px_rgba(15,23,42,0.04)]"
+                }`}
+              >
+                {item.role === "assistant" ? (
+                  <MarkdownContent content={item.content || (sending && idx === messages.length - 1 ? "..." : "")} />
+                ) : (
+                  item.content || (sending && idx === messages.length - 1 ? "..." : "")
+                )}
+              </div>
+            ))
+          )}
         </div>
 
         <form ref={formRef} onSubmit={onSubmit} className="border-t border-[var(--border)] bg-[var(--surface)] p-3">
