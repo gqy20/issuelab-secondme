@@ -1,9 +1,26 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
-import { requestApi } from "@/lib/http";
 
 type ChatItem = { role: "user" | "assistant"; content: string };
+type SseEvent = { event: string; data: string };
+
+function parseSseBlock(block: string): SseEvent | null {
+  const lines = block.split(/\r?\n/);
+  let event = "message";
+  const dataLines: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("event:")) {
+      event = line.slice(6).trim();
+    } else if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5).trim());
+    }
+  }
+
+  if (dataLines.length === 0) return null;
+  return { event, data: dataLines.join("\n") };
+}
 
 export function ChatWindow() {
   const [input, setInput] = useState("");
@@ -19,6 +36,20 @@ export function ChatWindow() {
   const formRef = useRef<HTMLFormElement>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
 
+  const appendToLastAssistant = (delta: string) => {
+    setMessages((prev) => {
+      if (prev.length === 0) return prev;
+      const next = [...prev];
+      const lastIndex = next.length - 1;
+      if (next[lastIndex].role !== "assistant") return prev;
+      next[lastIndex] = {
+        ...next[lastIndex],
+        content: `${next[lastIndex].content}${delta}`,
+      };
+      return next;
+    });
+  };
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (sending) return;
@@ -26,36 +57,81 @@ export function ChatWindow() {
     const message = input.trim();
     if (!message) return;
 
-    setMessages((prev) => [...prev, { role: "user", content: message }]);
     setInput("");
     setSending(true);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: message },
+      { role: "assistant", content: "" },
+    ]);
 
     try {
-      const result = await requestApi<{ reply?: string; sessionId?: string }>(
-        "/api/chat",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, sessionId }),
-        },
-        30000,
-      );
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, sessionId }),
+      });
 
-      if (result.data?.sessionId) {
-        setSessionId(result.data.sessionId);
+      if (!response.ok || !response.body) {
+        const payload = await response.json().catch(() => ({}));
+        const msg =
+          typeof payload?.message === "string"
+            ? payload.message
+            : "聊天请求失败，请稍后重试。";
+        appendToLastAssistant(msg);
+        return;
       }
 
-      const reply =
-        result.data?.reply ??
-        (result.code === 401
-          ? "你还没有登录，请先点击上方登录按钮。"
-          : result.message ?? "暂时没有获取到回复。");
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() ?? "";
+
+        for (const block of blocks) {
+          const parsed = parseSseBlock(block.trim());
+          if (!parsed) continue;
+
+          try {
+            const payload = JSON.parse(parsed.data) as {
+              text?: string;
+              message?: string;
+              sessionId?: string;
+            };
+
+            if (parsed.event === "session" && payload.sessionId) {
+              setSessionId(payload.sessionId);
+              continue;
+            }
+
+            if (parsed.event === "delta" && payload.text) {
+              appendToLastAssistant(payload.text);
+              continue;
+            }
+
+            if (parsed.event === "error") {
+              appendToLastAssistant(
+                payload.message ?? "聊天流中断，请稍后再试。",
+              );
+              continue;
+            }
+
+            if (parsed.event === "done") {
+              continue;
+            }
+          } catch {
+            // Ignore malformed local SSE blocks.
+          }
+        }
+      }
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "请求失败，请检查本地服务日志。" },
-      ]);
+      appendToLastAssistant("网络异常，请稍后重试。");
     } finally {
       setSending(false);
     }
@@ -96,7 +172,7 @@ export function ChatWindow() {
                 : "bg-white text-[var(--foreground)]"
             }`}
           >
-            {item.content}
+            {item.content || (sending && idx === messages.length - 1 ? "..." : "")}
           </div>
         ))}
       </div>
@@ -122,9 +198,10 @@ export function ChatWindow() {
           aria-busy={sending}
           className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {sending ? "发送中" : "发送"}
+          {sending ? "生成中" : "发送"}
         </button>
       </form>
     </div>
   );
 }
+

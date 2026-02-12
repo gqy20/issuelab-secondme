@@ -1,7 +1,7 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { readJsonSafe, secondMeRequest } from "@/lib/secondme";
+import { secondMeRequest } from "@/lib/secondme";
 
 type ChatBody = {
   message?: string;
@@ -24,11 +24,8 @@ export async function POST(request: Request) {
     where: { secondmeUserId: userId },
     select: { id: true },
   });
-  if (!user) {
+  if (!user?.id) {
     return NextResponse.json({ code: 404, message: "用户不存在" }, { status: 404 });
-  }
-  if (!user.id) {
-    return NextResponse.json({ code: 500, message: "用户数据异常" }, { status: 500 });
   }
 
   const session =
@@ -41,48 +38,117 @@ export async function POST(request: Request) {
     ).id;
 
   await prisma.chatMessage.create({
-    data: {
-      sessionId: session,
-      role: "user",
-      content: message,
-    },
+    data: { sessionId: session, role: "user", content: message },
   });
 
-  const upstream = await secondMeRequest("/api/secondme/chat", {
+  const upstream = await secondMeRequest("/api/secondme/chat/stream", {
     method: "POST",
     accessToken,
     body: JSON.stringify({ message, session_id: session }),
   });
-  const payload = await readJsonSafe(upstream);
 
-  const assistantMessage =
-    payload &&
-    typeof payload === "object" &&
-    "data" in payload &&
-    (payload as { data?: { reply?: string } }).data?.reply
-      ? (payload as { data: { reply: string } }).data.reply
-      : "已收到消息，后续会接入真实流式回复。";
-
-  await prisma.chatMessage.create({
-    data: {
-      sessionId: session,
-      role: "assistant",
-      content: assistantMessage,
-    },
-  });
-
-  if (!upstream.ok) {
+  if (!upstream.ok || !upstream.body) {
     return NextResponse.json(
       {
-        code: upstream.status,
+        code: upstream.status || 502,
         message: "上游聊天服务暂不可用",
-        data: { sessionId: session, reply: assistantMessage },
       },
-      { status: 200 },
+      { status: 502 },
     );
   }
 
-  return NextResponse.json(
-    payload ?? { code: 0, data: { sessionId: session, reply: assistantMessage } },
-  );
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  const reader = upstream.body.getReader();
+
+  let assistantText = "";
+  let sessionId = session;
+  let lineBuffer = "";
+
+  const emit = (event: string, payload: unknown) =>
+    encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      controller.enqueue(emit("session", { sessionId }));
+
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          lineBuffer += decoder.decode(value, { stream: true });
+          const lines = lineBuffer.split(/\r?\n/);
+          lineBuffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+
+            const raw = trimmed.slice(5).trim();
+            if (!raw || raw === "[DONE]") continue;
+
+            try {
+              const payload = JSON.parse(raw) as {
+                sessionId?: string;
+                data?: { sessionId?: string; reply?: string };
+                choices?: Array<{ delta?: { content?: string } }>;
+                content?: string;
+                reply?: string;
+              };
+
+              const maybeSessionId =
+                payload.sessionId ?? payload.data?.sessionId ?? sessionId;
+              if (maybeSessionId !== sessionId) {
+                sessionId = maybeSessionId;
+                controller.enqueue(emit("session", { sessionId }));
+              }
+
+              const delta =
+                payload.choices?.[0]?.delta?.content ??
+                payload.data?.reply ??
+                payload.reply ??
+                payload.content ??
+                "";
+
+              if (!delta) continue;
+              assistantText += delta;
+              controller.enqueue(emit("delta", { text: delta }));
+            } catch {
+              // Ignore malformed chunks.
+            }
+          }
+        }
+
+        if (!assistantText) {
+          assistantText = "未收到上游流式回复。";
+          controller.enqueue(emit("delta", { text: assistantText }));
+        }
+
+        await prisma.chatMessage.create({
+          data: { sessionId, role: "assistant", content: assistantText },
+        });
+
+        controller.enqueue(emit("done", { sessionId }));
+      } catch (error) {
+        controller.enqueue(
+          emit("error", {
+            message:
+              error instanceof Error ? error.message : "聊天流中断，请稍后重试。",
+          }),
+        );
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
 }
+
