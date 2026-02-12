@@ -1,92 +1,85 @@
-# Claude Agent SDK 系统智能体实现文档
+# 系统智能体实现说明（轻量 Messages API 方案）
 
 ## 1. 目标
 
-在现有 `IssueLab x SecondMe` 聊天链路上，增加系统级三路径智能体，用于在同一输入下并行给出三种发展路径建议：
+在 `IssueLab x SecondMe` 中实现三路径系统智能体，并支持多轮博弈：
 
-- `radical`：激进创新路径
-- `conservative`：稳健保守路径
-- `cross_domain`：跨学科融合路径
+- `radical`（激进创新）
+- `conservative`（稳健保守）
+- `cross_domain`（跨域融合）
 
-并给出：
+每轮输出路径教练观点，并让 SecondMe 对该观点回应，最后产出：
 
-- 三路径综合结论（`synthesis`）
-- 综合结论质量评估（`evaluation`）
+- `path_report`
+- `synthesis`
+- `evaluation`
 
-## 2. 当前落地位置
+## 2. 架构落点
 
-- SDK 适配层：`src/lib/system-agents/runtime.ts`
-- 聊天编排入口：`src/app/api/chat/route.ts`
+- 系统智能体调用：`src/lib/system-agents/runtime.ts`
+- 编排与 SSE：`src/app/api/chat/route.ts`
 - 前端展示：`src/components/ChatWindow.tsx`
 
-## 3. 执行流程
+## 3. 为什么改为轻量 API
 
-1. 用户发起 `POST /api/chat`
-2. 后端调用 SecondMe 流式聊天接口，持续透传 `delta`
-3. SecondMe 主回复完成后，后端并行调用三个系统路径智能体（Claude Agent SDK）
-4. 返回 `path_report` 事件（每条路径）
-5. 在三条路径都成功后，继续产出：
-   - `synthesis`
-   - `evaluation`
-6. 最后返回 `done`
+原方案使用 Claude Agent SDK，依赖本地 CLI 进程，不适合 Vercel Serverless 的无状态运行环境。  
+当前改为 Anthropic Messages API（兼容 Anthropic 协议网关也可），避免 CLI 依赖，直接通过 HTTP 调用。
 
-## 4. SSE 事件约定
+## 4. 运行流程
 
-- `session`: `{ sessionId }`
-- `delta`: `{ text }`
-- `path_status`: `{ status }` 或 `{ path, status }`
-- `path_report`: `{ path, report }` 或 `{ path, error }`
-- `synthesis`: `{ summary, consensus, disagreements, recommendation }`
-- `evaluation`: `{ score, strengths, weaknesses, next_iteration }`
-- `done`: `{ sessionId }`
+1. 用户发起 `/api/chat`
+2. 先获取主 SecondMe 流式回复（`delta`）
+3. 主回复完成后进入三路径多轮博弈（默认 10 轮）
+4. 每轮每路径：
+   - 系统教练生成观点
+   - SecondMe 针对观点回应
+   - 推送 `debate_round` 事件
+5. 轮次结束后推送 `path_report`
+6. 最后推送 `synthesis` 与 `evaluation`
 
-## 5. 环境变量
+## 5. SSE 事件
 
-必须：
+- `session`
+- `delta`
+- `path_status`
+- `debate_status`
+- `debate_round`
+- `path_report`
+- `synthesis`
+- `evaluation`
+- `done`
 
-- `ANTHROPIC_API_KEY`：Claude Agent SDK 鉴权
-- `SECONDME_*` 一组变量（已在项目使用）
+## 6. 环境变量
+
+必需：
+
+- `SECONDME_*`（现有配置）
 - `DATABASE_URL`
+- `ANTHROPIC_AUTH_TOKEN` 或 `ANTHROPIC_API_KEY`
 
 可选：
 
-- `SYSTEM_AGENT_ENABLED`：默认开启，设置为 `false` 关闭系统智能体
-- `CLAUDE_AGENT_MODEL`：默认 `sonnet`
-- `CLAUDE_AGENT_MAX_TURNS`：默认 `6`
+- `SYSTEM_AGENT_ENABLED`（默认开启）
+- `SYSTEM_AGENT_DEBATE_ROUNDS`（默认 `10`）
+- `ANTHROPIC_BASE_URL`（默认 `https://api.anthropic.com`）
+- `ANTHROPIC_MODEL` / `CLAUDE_AGENT_MODEL`
+- `ANTHROPIC_MAX_TOKENS`（默认 `1200`）
 
-## 6. 关键实现细节
+## 7. 部署注意事项
 
-- 使用 `query()` + `outputFormat: { type: "json_schema" }` 强制结构化输出
-- 每个路径有独立 `AgentDefinition`（名称、描述、系统提示词）
-- 通过 JSON Schema 约束返回字段，降低解析失败风险
-- 所有系统智能体调用禁用工具（`tools: []`），仅做推理输出
-- 设置超时与异常兜底，避免主链路阻塞
+构建脚本已包含 Prisma Client 生成：
 
-## 7. 部署注意事项（Vercel）
+```bash
+npm run build
+```
 
-- `src/app/api/chat/route.ts` 已显式 `runtime = "nodejs"`，确保 SDK 在 Node 环境运行
-- 在 Vercel 项目变量中配置 `ANTHROPIC_API_KEY`
-- 若线上成本或延迟过高，可先设置 `SYSTEM_AGENT_ENABLED=false` 验证主链路
+实际命令：
 
-## 8. 下一步建议
+```bash
+prisma generate && next build --webpack
+```
 
-1. 将系统智能体输出写入 Prisma（`Run/PathRun/Artifact/Evaluation`）
-2. 增加前端“路径对比视图”（不止显示一句 hypothesis）
-3. 增加回放页面：按会话查看历史路径建议与评估变化
-
-## 9. 数据库迁移说明
-
-本项目代码已使用以下模型落库：
-
-- `Task`
-- `Run`
-- `PathRun`
-- `Turn`
-- `PathReport`
-- `Artifact`
-- `Evaluation`
-
-部署前请确保已执行 Prisma 迁移并生成客户端：
+## 8. 数据库迁移
 
 ```bash
 npx prisma migrate deploy

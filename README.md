@@ -65,13 +65,17 @@ npm run build
 - `SECONDME_REFRESH_ENDPOINT`
 - `DATABASE_URL`
 - `SYSTEM_AGENT_ENABLED`（可选，默认开启；`false` 为关闭）
-- `CLAUDE_AGENT_MODEL`（可选，默认 `sonnet`）
-- `CLAUDE_AGENT_MAX_TURNS`（可选，默认 `6`）
-- `ANTHROPIC_API_KEY`（Claude Agent SDK 鉴权）
+- `SYSTEM_AGENT_DEBATE_ROUNDS`（可选，默认 `10`）
+- `ANTHROPIC_BASE_URL`（可选，默认 `https://api.anthropic.com`）
+- `ANTHROPIC_AUTH_TOKEN`（推荐，Anthropic 兼容网关 token）
+- `ANTHROPIC_API_KEY`（可选，若未提供 `ANTHROPIC_AUTH_TOKEN` 则使用此项）
+- `ANTHROPIC_MODEL`（可选，未配置时回退到默认模型）
+- `CLAUDE_AGENT_MODEL`（可选，作为模型名兼容项）
+- `ANTHROPIC_MAX_TOKENS`（可选，默认 `1200`）
 
-## Claude Agent SDK（三路径系统智能体）
+## 轻量 Messages API（三路径系统智能体）
 
-后端已使用 `@anthropic-ai/claude-agent-sdk`，在每次 SecondMe 主回复完成后，自动触发三条系统路径分析：
+后端使用 Anthropic Messages API（兼容 Anthropic 协议的网关也可），在每次 SecondMe 主回复完成后，自动触发三条系统路径分析：
 
 - `radical`：激进创新路径
 - `conservative`：稳健保守路径

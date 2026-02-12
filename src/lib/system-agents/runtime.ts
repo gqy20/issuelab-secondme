@@ -1,12 +1,9 @@
-import type { AgentDefinition, OutputFormat, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { query } from "@anthropic-ai/claude-agent-sdk";
-import path from "node:path";
-
 export type JsonRecord = Record<string, unknown>;
 export type PathType = "radical" | "conservative" | "cross_domain";
 
-const DEFAULT_TIMEOUT_MS = 90000;
-const DEFAULT_MAX_TURNS = 6;
+const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_MAX_TOKENS = 1200;
+const DEFAULT_MODEL = "claude-3-5-sonnet-latest";
 
 type CoachOutput = {
   path: PathType;
@@ -31,15 +28,32 @@ type EvaluationOutput = {
   next_iteration: string[];
 };
 
-function getModelName() {
-  return process.env.CLAUDE_AGENT_MODEL?.trim() || "sonnet";
+function getBaseUrl() {
+  const fromEnv = process.env.ANTHROPIC_BASE_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, "");
+  return "https://api.anthropic.com";
 }
 
-function getMaxTurns() {
-  const raw = process.env.CLAUDE_AGENT_MAX_TURNS;
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value < 1) return DEFAULT_MAX_TURNS;
-  return Math.floor(value);
+function getAuthToken() {
+  return (
+    process.env.ANTHROPIC_AUTH_TOKEN?.trim() ||
+    process.env.ANTHROPIC_API_KEY?.trim() ||
+    ""
+  );
+}
+
+function getModelName() {
+  return (
+    process.env.CLAUDE_AGENT_MODEL?.trim() ||
+    process.env.ANTHROPIC_MODEL?.trim() ||
+    DEFAULT_MODEL
+  );
+}
+
+function getMaxTokens() {
+  const raw = Number(process.env.ANTHROPIC_MAX_TOKENS ?? DEFAULT_MAX_TOKENS);
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_MAX_TOKENS;
+  return Math.floor(raw);
 }
 
 function asObject(value: unknown): JsonRecord | null {
@@ -52,167 +66,119 @@ function toStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string");
 }
 
-function getClaudeCliPath() {
-  const fromEnv = process.env.CLAUDE_CODE_EXECUTABLE_PATH?.trim();
-  if (fromEnv) return fromEnv;
+function extractTextFromMessagePayload(payload: unknown) {
+  const obj = asObject(payload);
+  if (!obj) return "";
+  const content = obj.content;
+  if (!Array.isArray(content)) return "";
 
-  // Vercel Node runtime commonly uses /var/task as cwd; local dev uses project cwd.
-  return path.join(process.cwd(), "node_modules", "@anthropic-ai", "claude-agent-sdk", "cli.js");
+  let text = "";
+  for (const chunk of content) {
+    const item = asObject(chunk);
+    if (!item) continue;
+    if (item.type === "text" && typeof item.text === "string") {
+      text += item.text;
+    }
+  }
+  return text.trim();
+}
+
+function extractJsonText(raw: string) {
+  const cleaned = raw.trim();
+  if (!cleaned) return cleaned;
+
+  const fenced = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenced?.[1]) return fenced[1].trim();
+
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start >= 0 && end > start) return cleaned.slice(start, end + 1);
+  return cleaned;
 }
 
 async function runJsonTask<T extends JsonRecord>(params: {
-  agentName: string;
-  description: string;
   systemPrompt: string;
   userPrompt: string;
-  schema: JsonRecord;
   timeoutMs?: number;
 }): Promise<T> {
-  const {
-    agentName,
-    description,
-    systemPrompt,
-    userPrompt,
-    schema,
-    timeoutMs = DEFAULT_TIMEOUT_MS,
-  } = params;
+  const { systemPrompt, userPrompt, timeoutMs = DEFAULT_TIMEOUT_MS } = params;
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error("Missing ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY");
+  }
 
-  const abortController = new AbortController();
-  const timer = setTimeout(() => abortController.abort(), timeoutMs);
-
-  const outputFormat: OutputFormat = {
-    type: "json_schema",
-    schema,
-  };
-
-  const agentDef: AgentDefinition = {
-    description,
-    prompt: systemPrompt,
-    model: "inherit",
-    tools: [],
-    maxTurns: getMaxTurns(),
-  };
-
-  let resultText = "";
-  let structured: unknown;
-  let lastError = "";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const stream = query({
-      prompt: userPrompt,
-      options: {
-        pathToClaudeCodeExecutable: getClaudeCliPath(),
-        abortController,
-        model: getModelName(),
-        maxTurns: getMaxTurns(),
-        outputFormat,
-        tools: [],
-        agent: agentName,
-        agents: { [agentName]: agentDef },
-        cwd: process.cwd(),
+    const response = await fetch(`${getBaseUrl()}/v1/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": token,
+        "anthropic-version": "2023-06-01",
       },
+      body: JSON.stringify({
+        model: getModelName(),
+        max_tokens: getMaxTokens(),
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
+        temperature: 0.2,
+      }),
+      cache: "no-store",
+      signal: controller.signal,
     });
 
-    for await (const msg of stream) {
-      const message = msg as SDKMessage;
-      if (message.type !== "result") continue;
-
-      if (message.subtype === "success") {
-        resultText = message.result ?? "";
-        structured = message.structured_output;
-      } else {
-        lastError = (message.errors ?? []).join("; ");
-      }
+    const payload = (await response.json()) as unknown;
+    if (!response.ok) {
+      const details = asObject(payload);
+      const err =
+        asObject(details?.error)?.message ||
+        asObject(details)?.message ||
+        `HTTP ${response.status}`;
+      throw new Error(`Messages API failed: ${String(err)}`);
     }
+
+    const text = extractTextFromMessagePayload(payload);
+    const jsonText = extractJsonText(text);
+    const parsed = JSON.parse(jsonText) as unknown;
+    const object = asObject(parsed);
+    if (!object) {
+      throw new Error("Model returned non-object JSON");
+    }
+    return object as T;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Messages API timeout");
+    }
+    throw error;
   } finally {
     clearTimeout(timer);
   }
-
-  const structuredObject = asObject(structured);
-  if (structuredObject) {
-    return structuredObject as T;
-  }
-
-  if (resultText) {
-    try {
-      const parsed = JSON.parse(resultText) as unknown;
-      const object = asObject(parsed);
-      if (object) return object as T;
-    } catch {
-      // fall through to final error.
-    }
-  }
-
-  if (lastError.includes("Claude Code executable not found")) {
-    throw new Error(
-      `${lastError}. Set CLAUDE_CODE_EXECUTABLE_PATH or ensure @anthropic-ai/claude-agent-sdk is externalized in Next.js build.`,
-    );
-  }
-
-  throw new Error(lastError || "Claude Agent SDK returned non-JSON result");
 }
 
-function coachSchema(): JsonRecord {
-  return {
-    type: "object",
-    additionalProperties: false,
-    required: ["path", "hypothesis", "why", "next_steps", "test_plan", "risk_guardrail"],
-    properties: {
-      path: { type: "string", enum: ["radical", "conservative", "cross_domain"] },
-      hypothesis: { type: "string" },
-      why: { type: "string" },
-      next_steps: {
-        type: "array",
-        items: { type: "string" },
-        minItems: 3,
-        maxItems: 5,
-      },
-      test_plan: { type: "string" },
-      risk_guardrail: { type: "string" },
-    },
-  };
-}
-
-function synthesisSchema(): JsonRecord {
-  return {
-    type: "object",
-    additionalProperties: false,
-    required: ["summary", "consensus", "disagreements", "recommendation"],
-    properties: {
-      summary: { type: "string" },
-      consensus: { type: "array", items: { type: "string" } },
-      disagreements: { type: "array", items: { type: "string" } },
-      recommendation: { type: "string" },
-    },
-  };
-}
-
-function evaluationSchema(): JsonRecord {
-  return {
-    type: "object",
-    additionalProperties: false,
-    required: ["score", "strengths", "weaknesses", "next_iteration"],
-    properties: {
-      score: { type: "number", minimum: 0, maximum: 100 },
-      strengths: { type: "array", items: { type: "string" } },
-      weaknesses: { type: "array", items: { type: "string" } },
-      next_iteration: { type: "array", items: { type: "string" } },
-    },
-  };
-}
-
-function getCoachSystemPrompt(path: PathType) {
-  const labels: Record<PathType, string> = {
-    radical: "激进创新路径",
-    conservative: "稳健保守路径",
-    cross_domain: "跨学科融合路径",
-  };
-
+function coachPrompt(path: PathType) {
   return [
-    "你是系统级路径教练，负责引导 SecondMe 的单一路径决策。",
-    `当前路径：${labels[path]}。`,
-    "只输出 JSON，不要解释，不要 markdown。",
-    "结论必须可执行，可测试。",
+    "You are a system coach for path planning.",
+    `Current path: ${path}.`,
+    "Return JSON only. No markdown.",
+    "Required fields: path, hypothesis, why, next_steps(3-5 items), test_plan, risk_guardrail.",
+  ].join("\n");
+}
+
+function synthesisPrompt() {
+  return [
+    "You synthesize three path outputs into one decision aid.",
+    "Return JSON only. No markdown.",
+    "Required fields: summary, consensus, disagreements, recommendation.",
+  ].join("\n");
+}
+
+function evaluatePrompt() {
+  return [
+    "You evaluate the synthesis quality.",
+    "Return JSON only. No markdown.",
+    "Required fields: score(0-100), strengths, weaknesses, next_iteration.",
   ].join("\n");
 }
 
@@ -221,16 +187,12 @@ export async function callCoach(
   params: { taskInput: string; round: number; context: string },
 ): Promise<CoachOutput> {
   const json = await runJsonTask<CoachOutput>({
-    agentName: `path-${path}`,
-    description: `System coach for ${path} path`,
-    systemPrompt: getCoachSystemPrompt(path),
+    systemPrompt: coachPrompt(path),
     userPrompt: [
-      `用户任务：${params.taskInput}`,
-      `轮次：${params.round}`,
-      `上下文：${params.context}`,
-      "输出字段：path, hypothesis, why, next_steps(3-5条), test_plan, risk_guardrail",
+      `task_input: ${params.taskInput}`,
+      `round: ${params.round}`,
+      `context: ${params.context}`,
     ].join("\n\n"),
-    schema: coachSchema(),
   });
 
   return {
@@ -247,17 +209,11 @@ export async function callPathReport(params: {
   path: PathType;
   transcript: JsonRecord;
 }): Promise<JsonRecord> {
-  const output = await runJsonTask<JsonRecord>({
-    agentName: `path-report-${params.path}`,
-    description: `Path report formatter for ${params.path}`,
-    systemPrompt: "你是路径报告整理器。将输入转成清晰 JSON 报告。",
+  return runJsonTask<JsonRecord>({
+    systemPrompt:
+      "You format path transcript into a concise report JSON. Return JSON only.",
     userPrompt: JSON.stringify(params),
-    schema: {
-      type: "object",
-      additionalProperties: true,
-    },
   });
-  return output;
 }
 
 export async function callSynthesize(params: {
@@ -266,12 +222,8 @@ export async function callSynthesize(params: {
   cross_domain: JsonRecord;
 }): Promise<SynthesisOutput> {
   const json = await runJsonTask<SynthesisOutput>({
-    agentName: "path-synthesizer",
-    description: "Synthesize three path outputs into one recommendation",
-    systemPrompt:
-      "你是综合分析智能体。整合三条路径并给出可落地建议。只输出 JSON。",
+    systemPrompt: synthesisPrompt(),
     userPrompt: JSON.stringify(params),
-    schema: synthesisSchema(),
   });
 
   return {
@@ -289,12 +241,8 @@ export async function callEvaluate(params: {
   synthesis: JsonRecord;
 }): Promise<EvaluationOutput> {
   const json = await runJsonTask<EvaluationOutput>({
-    agentName: "path-evaluator",
-    description: "Evaluate the final recommendation quality",
-    systemPrompt:
-      "你是评估智能体。评估综合结论的质量与风险，输出可继续迭代的建议。只输出 JSON。",
+    systemPrompt: evaluatePrompt(),
     userPrompt: JSON.stringify(params),
-    schema: evaluationSchema(),
   });
 
   return {

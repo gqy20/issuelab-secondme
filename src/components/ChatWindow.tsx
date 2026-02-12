@@ -33,6 +33,20 @@ type DebateRoundItem = {
   error?: string;
 };
 
+const PATH_KEYS: PathKey[] = ["radical", "conservative", "cross_domain"];
+
+const PATH_LABELS: Record<PathKey, string> = {
+  radical: "Radical",
+  conservative: "Conservative",
+  cross_domain: "Cross-domain",
+};
+
+const INITIAL_EXPANDED_PATHS: Record<PathKey, boolean> = {
+  radical: true,
+  conservative: false,
+  cross_domain: false,
+};
+
 function parseSseBlock(block: string): SseEvent | null {
   const lines = block.split(/\r?\n/);
   let event = "message";
@@ -50,6 +64,31 @@ function parseSseBlock(block: string): SseEvent | null {
   return { event, data: dataLines.join("\n") };
 }
 
+function getStatusLabel(status: string) {
+  switch (status) {
+    case "running":
+      return "Running";
+    case "done":
+      return "Done";
+    case "partial_failed":
+      return "Partially failed";
+    case "failed":
+      return "Failed";
+    case "idle":
+      return "Idle";
+    default:
+      return status;
+  }
+}
+
+function getStatusClass(status: string) {
+  if (status === "done") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (status === "partial_failed") return "bg-amber-50 text-amber-700 border-amber-200";
+  if (status === "failed") return "bg-rose-50 text-rose-700 border-rose-200";
+  if (status === "running") return "bg-sky-50 text-sky-700 border-sky-200";
+  return "bg-slate-50 text-slate-600 border-slate-200";
+}
+
 export function ChatWindow() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -60,10 +99,11 @@ export function ChatWindow() {
   const [synthesis, setSynthesis] = useState<Synthesis | null>(null);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [debateRounds, setDebateRounds] = useState<DebateRoundItem[]>([]);
+  const [expandedPaths, setExpandedPaths] = useState<Record<PathKey, boolean>>(INITIAL_EXPANDED_PATHS);
   const [messages, setMessages] = useState<ChatItem[]>([
     {
       role: "assistant",
-      content: "欢迎进入轨迹讨论区，输入你的问题开始探索。",
+      content: "Welcome to trajectory discussion. Enter a question to start exploring.",
     },
   ]);
 
@@ -84,6 +124,10 @@ export function ChatWindow() {
     });
   };
 
+  const togglePath = (path: PathKey) => {
+    setExpandedPaths((prev) => ({ ...prev, [path]: !prev[path] }));
+  };
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (sending) return;
@@ -93,17 +137,14 @@ export function ChatWindow() {
 
     setInput("");
     setSending(true);
-    setPathStatus("idle");
+    setPathStatus("running");
     setDebateStatus("idle");
     setPathReports({});
     setSynthesis(null);
     setEvaluation(null);
     setDebateRounds([]);
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content: message },
-      { role: "assistant", content: "" },
-    ]);
+    setExpandedPaths(INITIAL_EXPANDED_PATHS);
+    setMessages((prev) => [...prev, { role: "user", content: message }, { role: "assistant", content: "" }]);
 
     try {
       const response = await fetch("/api/chat", {
@@ -117,7 +158,7 @@ export function ChatWindow() {
         const msg =
           typeof payload?.message === "string"
             ? payload.message
-            : "聊天请求失败，请稍后重试。";
+            : "Chat request failed. Please try again later.";
         appendToLastAssistant(msg);
         return;
       }
@@ -153,9 +194,7 @@ export function ChatWindow() {
 
             if (parsed.event === "error") {
               appendToLastAssistant(
-                typeof payload.message === "string"
-                  ? payload.message
-                  : "聊天流中断，请稍后重试。",
+                typeof payload.message === "string" ? payload.message : "Chat stream interrupted. Please retry.",
               );
               continue;
             }
@@ -214,7 +253,7 @@ export function ChatWindow() {
         }
       }
     } catch {
-      appendToLastAssistant("网络异常，请稍后重试。");
+      appendToLastAssistant("Network error. Please try again later.");
     } finally {
       setSending(false);
     }
@@ -232,112 +271,171 @@ export function ChatWindow() {
   };
 
   return (
-    <div className="flex h-[62dvh] min-h-[420px] max-h-[560px] flex-col sm:h-[560px]">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">轨迹对话</h2>
-        <span className="text-xs text-[var(--text-muted)]">
-          {sessionId ? `会话 ${sessionId.slice(0, 6)}...` : "新会话"}
+    <div className="flex h-[70dvh] min-h-[560px] max-h-[800px] flex-col">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">Trajectory Chat</h2>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            Ask one question and compare perspective divergence across multiple paths.
+          </p>
+        </div>
+        <span className="rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--text-muted)]">
+          {sessionId ? `Session ${sessionId.slice(0, 8)}...` : "New session"}
         </span>
       </div>
 
-      <div
-        ref={messageListRef}
-        aria-live="polite"
-        aria-label="聊天消息列表"
-        className="flex-1 space-y-3 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3"
-      >
-        {messages.map((item, idx) => (
-          <div
-            key={`${item.role}-${idx}`}
-            className={`max-w-[88%] rounded-xl px-3 py-2 text-sm leading-6 ${
-              item.role === "user"
-                ? "ml-auto bg-[var(--accent)] text-white"
-                : "bg-white text-[var(--foreground)]"
-            }`}
-          >
-            {item.content || (sending && idx === messages.length - 1 ? "..." : "")}
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-3 rounded-xl border border-[var(--border)] bg-white p-3 text-xs text-[var(--text-muted)]">
-        <div className="flex items-center justify-between">
-          <span className="font-medium text-[var(--foreground)]">三路径系统智能体</span>
-          <span>路径状态: {pathStatus}</span>
-        </div>
-        <div className="mt-1">博弈轮状态: {debateStatus}</div>
-        <div className="mt-2 space-y-1">
-          {(["radical", "conservative", "cross_domain"] as PathKey[]).map((key) => {
-            const report = pathReports[key];
-            return (
-              <div key={key}>
-                <span className="font-medium text-[var(--foreground)]">{key}: </span>
-                <span>
-                  {report?.error
-                    ? `失败 - ${report.error}`
-                    : report?.hypothesis
-                      ? report.hypothesis
-                      : "等待结果..."}
+      <div className="mt-4 grid min-h-0 flex-1 gap-3 xl:grid-cols-[300px,minmax(0,1fr)]">
+        <aside className="min-h-0 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+          <div className="space-y-3 text-sm">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Pipeline status</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <span
+                  className={`rounded-full border px-2 py-1 text-xs font-medium ${getStatusClass(pathStatus)}`}
+                >
+                  Path engine: {getStatusLabel(pathStatus)}
+                </span>
+                <span
+                  className={`rounded-full border px-2 py-1 text-xs font-medium ${getStatusClass(debateStatus)}`}
+                >
+                  Debate rounds: {getStatusLabel(debateStatus)}
                 </span>
               </div>
-            );
-          })}
-          {synthesis?.summary ? (
-            <div>
-              <span className="font-medium text-[var(--foreground)]">综合建议: </span>
-              <span>{synthesis.summary}</span>
             </div>
-          ) : null}
-          {typeof evaluation?.score === "number" ? (
-            <div>
-              <span className="font-medium text-[var(--foreground)]">评估分: </span>
-              <span>{evaluation.score}</span>
-            </div>
-          ) : null}
-          {debateRounds.length > 0 ? (
-            <div className="mt-2 space-y-1 border-t border-[var(--border)] pt-2">
-              <div className="font-medium text-[var(--foreground)]">多轮博弈过程</div>
-              {debateRounds.slice(-10).map((item, idx) => (
-                <div key={`${item.path}-${item.round}-${idx}`}>
-                  <span className="font-medium">
-                    R{item.round} {item.path}:
-                  </span>{" "}
-                  <span>
-                    {item.error
-                      ? `失败 - ${item.error}`
-                      : `${item.coach?.hypothesis ?? "无假设"} | ${item.secondme ?? "无SecondMe回应"}`}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      </div>
 
-      <form ref={formRef} onSubmit={onSubmit} className="mt-3 flex gap-2">
-        <label htmlFor="chat-input" className="sr-only">
-          输入消息
-        </label>
-        <textarea
-          id="chat-input"
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={onInputKeyDown}
-          disabled={sending}
-          rows={2}
-          aria-label="聊天输入框"
-          placeholder="例如：如果我走跨学科路径，三年后最关键的能力差是什么？"
-          className="flex-1 resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
-        />
-        <button
-          type="submit"
-          disabled={sending}
-          aria-busy={sending}
-          className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {sending ? "生成中" : "发送"}
-        </button>
-      </form>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Path reports</p>
+              <div className="mt-2 space-y-2">
+                {PATH_KEYS.map((key) => {
+                  const report = pathReports[key];
+                  const expanded = expandedPaths[key];
+
+                  return (
+                    <div key={key} className="rounded-lg border border-[var(--border)] bg-white p-2.5">
+                      <button
+                        type="button"
+                        onClick={() => togglePath(key)}
+                        className="flex w-full items-center justify-between gap-3 text-left"
+                        aria-expanded={expanded}
+                      >
+                        <span className="text-xs font-medium text-[var(--text-muted)]">{PATH_LABELS[key]}</span>
+                        <span className="text-xs text-[var(--accent)]">{expanded ? "Collapse" : "Expand"}</span>
+                      </button>
+
+                      <p className="mt-1 text-sm font-medium leading-6">
+                        {report?.error
+                          ? `Failed: ${report.error}`
+                          : report?.hypothesis
+                            ? report.hypothesis
+                            : "Waiting for result..."}
+                      </p>
+
+                      {expanded ? (
+                        <div className="mt-2 space-y-2 border-t border-[var(--border)] pt-2 text-xs leading-5 text-[var(--text-muted)]">
+                          {report?.why ? <p>Reasoning: {report.why}</p> : null}
+                          {report?.test_plan ? <p>Test plan: {report.test_plan}</p> : null}
+                          {report?.risk_guardrail ? <p>Risk guardrail: {report.risk_guardrail}</p> : null}
+                          {report?.next_steps && report.next_steps.length > 0 ? (
+                            <div>
+                              <p>Next steps:</p>
+                              <ul className="mt-1 list-disc pl-5">
+                                {report.next_steps.map((step) => (
+                                  <li key={step}>{step}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+                          {!report ? <p>No detail available yet.</p> : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {synthesis?.summary ? (
+              <div className="rounded-lg border border-[var(--border)] bg-white p-2.5">
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Synthesis</p>
+                <p className="mt-1 text-sm leading-6">{synthesis.summary}</p>
+              </div>
+            ) : null}
+
+            {typeof evaluation?.score === "number" ? (
+              <div className="rounded-lg border border-[var(--border)] bg-white p-2.5">
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Evaluation</p>
+                <p className="mt-1 text-sm">{evaluation.score}</p>
+              </div>
+            ) : null}
+
+            {debateRounds.length > 0 ? (
+              <div className="rounded-lg border border-[var(--border)] bg-white p-2.5">
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Recent rounds</p>
+                <div className="mt-2 space-y-1.5 text-xs leading-5 text-[var(--text-muted)]">
+                  {debateRounds.slice(-6).map((item, idx) => (
+                    <p key={`${item.path}-${item.round}-${idx}`}>
+                      R{item.round} {PATH_LABELS[item.path]}:
+                      {item.error
+                        ? ` Failed - ${item.error}`
+                        : ` ${item.coach?.hypothesis ?? "No hypothesis"} | ${item.secondme ?? "No response"}`}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </aside>
+
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
+          <div
+            ref={messageListRef}
+            aria-live="polite"
+            aria-label="Chat message list"
+            className="flex-1 space-y-3 overflow-y-auto p-3"
+          >
+            {messages.map((item, idx) => (
+              <div
+                key={`${item.role}-${idx}`}
+                className={`max-w-[82%] rounded-xl px-3 py-2 text-sm leading-6 ${
+                  item.role === "user"
+                    ? "ml-auto bg-[var(--accent)] text-white"
+                    : "bg-white text-[var(--foreground)]"
+                }`}
+              >
+                {item.content || (sending && idx === messages.length - 1 ? "..." : "")}
+              </div>
+            ))}
+          </div>
+
+          <form ref={formRef} onSubmit={onSubmit} className="border-t border-[var(--border)] bg-white p-3">
+            <div className="flex gap-2">
+              <label htmlFor="chat-input" className="sr-only">
+                Enter message
+              </label>
+              <textarea
+                id="chat-input"
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={onInputKeyDown}
+                disabled={sending}
+                rows={2}
+                aria-label="Chat input"
+                placeholder="Example: If I switch to a cross-disciplinary path, what capability gap matters most in 3 years?"
+                className="flex-1 resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
+              />
+              <button
+                type="submit"
+                disabled={sending}
+                aria-busy={sending}
+                className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {sending ? "Generating..." : "Send"}
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-[var(--text-muted)]">Press Enter to send, Shift + Enter for newline</p>
+          </form>
+        </section>
+      </div>
     </div>
   );
 }
