@@ -15,14 +15,8 @@ type PathReport = {
   error?: string;
 };
 
-type Synthesis = {
-  summary?: string;
-  recommendation?: string;
-};
-
-type Evaluation = {
-  score?: number;
-};
+type Synthesis = { summary?: string; recommendation?: string };
+type Evaluation = { score?: number };
 
 type DebateRoundItem = {
   path: PathKey;
@@ -46,16 +40,28 @@ type JudgeRoundItem = {
 
 const PATH_KEYS: PathKey[] = ["radical", "conservative", "cross_domain"];
 const PATH_LABELS: Record<PathKey, string> = {
-  radical: "æ¿€è¿›è·¯å¾„",
-  conservative: "ç¨³å¥è·¯å¾„",
-  cross_domain: "è·¨åŸŸè·¯å¾„",
+  radical: "\u6fc0\u8fdb\u8def\u5f84",
+  conservative: "\u7a33\u5065\u8def\u5f84",
+  cross_domain: "\u8de8\u57df\u8def\u5f84",
+};
+const QUICK_PROMPTS = [
+  "\u8bf7\u5bf9\u6bd4\u4e09\u6761\u8def\u5f84\u5728\u98ce\u9669\u4e0a\u7684\u6838\u5fc3\u5dee\u522b",
+  "\u57fa\u4e8e\u5f53\u524d\u7ed3\u8bba\u7ed9\u51fa\u4e00\u4e2a 30 \u5929\u6267\u884c\u8ba1\u5212",
+  "\u8bf7\u53ea\u805a\u7126\u53ef\u843d\u5730\u6027\uff0c\u91cd\u65b0\u7ed9\u51fa\u6392\u5e8f",
+];
+
+type StageMeta = {
+  label: string;
+  detail: string;
+  progress: number;
+  tone: "neutral" | "running" | "done" | "warn";
 };
 
-const DEFAULT_ASSISTANT_TEXT = "æ¬¢è¿è¿›å…¥å¤šè·¯å¾„åšå¼ˆæ¨¡å¼ï¼Œè¾“å…¥ä½ çš„é—®é¢˜å¼€å§‹åˆ†æã€‚";
-const RUNNING_ASSISTANT_TEXT = "æ­£åœ¨è¿›è¡Œå¤šè½®åšå¼ˆï¼Œè¯·ç¨å€™...";
-const REQUEST_FAILED_TEXT = "è¯·æ±‚å¤±è´¥ï¼Œè¯·ç¨åé‡è¯•ã€‚";
-const EXEC_FAILED_TEXT = "æ‰§è¡Œå¤±è´¥ï¼Œè¯·é‡è¯•ã€‚";
-const NETWORK_FAILED_TEXT = "ç½‘ç»œå¼‚å¸¸ï¼Œè¯·ç¨åé‡è¯•ã€‚";
+const DEFAULT_ASSISTANT_TEXT = "\u6b22\u8fce\u8fdb\u5165\u591a\u8def\u5f84\u535a\u5f08\u6a21\u5f0f\uff0c\u8f93\u5165\u4f60\u7684\u95ee\u9898\u5f00\u59cb\u5206\u6790\u3002";
+const RUNNING_ASSISTANT_TEXT = "\u6b63\u5728\u8fdb\u884c\u591a\u8f6e\u535a\u5f08\uff0c\u8bf7\u7a0d\u5019...";
+const REQUEST_FAILED_TEXT = "\u8bf7\u6c42\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
+const EXEC_FAILED_TEXT = "\u6267\u884c\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002";
+const NETWORK_FAILED_TEXT = "\u7f51\u7edc\u5f02\u5e38\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
 const MAX_ROUND_LOGS = 120;
 
 function pushCapped<T>(list: T[], item: T, max = MAX_ROUND_LOGS): T[] {
@@ -75,6 +81,58 @@ function parseSseBlock(block: string): SseEvent | null {
 
   if (dataLines.length === 0) return null;
   return { event, data: dataLines.join("\n") };
+}
+
+function statusToStage(status: string, type: "path" | "debate"): StageMeta {
+  if (status === "done") {
+    return {
+      label: "\u5df2\u5b8c\u6210",
+      detail: type === "path" ? "\u8def\u5f84\u7ed3\u679c\u5df2\u6536\u6572" : "\u8fa9\u8bba\u8f6e\u6b21\u5df2\u7ed3\u675f",
+      progress: 100,
+      tone: "done",
+    };
+  }
+
+  if (status === "partial_failed" || status === "failed") {
+    return {
+      label: "\u90e8\u5206\u5931\u8d25",
+      detail: "\u53ef\u7ee7\u7eed\u67e5\u770b\u5df2\u6709\u8f93\u51fa\u6216\u91cd\u8bd5",
+      progress: 75,
+      tone: "warn",
+    };
+  }
+
+  if (status === "running") {
+    return {
+      label: "\u8fdb\u884c\u4e2d",
+      detail: type === "path" ? "\u6b63\u5728\u751f\u6210\u591a\u8def\u5f84\u8bbe\u60f3" : "\u6b63\u5728\u8fdb\u884c\u89c2\u70b9\u4ea4\u9519\u9a8c\u8bc1",
+      progress: 50,
+      tone: "running",
+    };
+  }
+
+  return {
+    label: "\u5f85\u5f00\u59cb",
+    detail: type === "path" ? "\u63d0\u95ee\u540e\u5c06\u81ea\u52a8\u5f00\u59cb" : "\u8def\u5f84\u5b8c\u6210\u540e\u8fdb\u5165\u8fa9\u8bba",
+    progress: 10,
+    tone: "neutral",
+  };
+}
+
+function badgeClass(tone: StageMeta["tone"]) {
+  if (tone === "done") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (tone === "running") return "border-sky-200 bg-sky-50 text-sky-700";
+  if (tone === "warn") return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+function pickLatestByPath<T extends { path: PathKey }>(items: T[]) {
+  const latest: Partial<Record<PathKey, T>> = {};
+  for (let i = items.length - 1; i >= 0; i -= 1) {
+    const item = items[i];
+    if (!latest[item.path]) latest[item.path] = item;
+  }
+  return latest;
 }
 
 export function ChatWindow() {
@@ -137,21 +195,15 @@ export function ChatWindow() {
     setJudgeRounds([]);
   };
 
-  const onSubmit = async (event: FormEvent) => {
-    event.preventDefault();
+  const submitMessage = async (rawMessage: string) => {
     if (sending) return;
-
-    const message = input.trim();
+    const message = rawMessage.trim();
     if (!message) return;
 
     setInput("");
     setSending(true);
     resetDebateState();
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content: message },
-      { role: "assistant", content: RUNNING_ASSISTANT_TEXT },
-    ]);
+    setMessages((prev) => [...prev, { role: "user", content: message }, { role: "assistant", content: RUNNING_ASSISTANT_TEXT }]);
 
     try {
       const response = await fetch("/api/chat", {
@@ -162,9 +214,7 @@ export function ChatWindow() {
 
       if (!response.ok || !response.body) {
         const payload = await response.json().catch(() => ({}));
-        replaceLastAssistant(
-          typeof payload?.message === "string" ? payload.message : REQUEST_FAILED_TEXT,
-        );
+        replaceLastAssistant(typeof payload?.message === "string" ? payload.message : REQUEST_FAILED_TEXT);
         return;
       }
 
@@ -259,9 +309,7 @@ export function ChatWindow() {
             }
 
             if (parsed.event === "error") {
-              replaceLastAssistant(
-                typeof payload.message === "string" ? payload.message : EXEC_FAILED_TEXT,
-              );
+              replaceLastAssistant(typeof payload.message === "string" ? payload.message : EXEC_FAILED_TEXT);
               continue;
             }
 
@@ -280,6 +328,11 @@ export function ChatWindow() {
     }
   };
 
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    await submitMessage(input);
+  };
+
   useEffect(() => {
     if (!messageListRef.current) return;
     messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
@@ -291,83 +344,171 @@ export function ChatWindow() {
     formRef.current?.requestSubmit();
   };
 
+  const pathStage = statusToStage(pathStatus, "path");
+  const debateStage = statusToStage(debateStatus, "debate");
+  const overallProgress = Math.round((pathStage.progress + debateStage.progress) / 2);
+  const latestDebateByPath = pickLatestByPath(debateRounds);
+  const latestJudgeByPath = pickLatestByPath(judgeRounds);
+  const failedPaths = PATH_KEYS.filter((path) => Boolean(pathReports[path]?.error));
+  const pathSummaries = PATH_KEYS.map((path) => {
+    const report = pathReports[path];
+    const summary = report?.final_hypothesis || report?.hypothesis;
+    if (report?.error) return { path, text: `\u5931\u8d25\uff1a${report.error}` };
+    if (summary) return { path, text: summary };
+    return { path, text: "\u6682\u65e0\u7ed3\u679c" };
+  });
+
+  const applyQuickPrompt = (prompt: string) => {
+    if (sending) return;
+    setInput(prompt);
+  };
+
+  const retryFailedPaths = async () => {
+    if (sending || failedPaths.length === 0) return;
+    const target = failedPaths.map((path) => PATH_LABELS[path]).join("¡¢");
+    await submitMessage(`Çë½öÖØÊÔÒÔÏÂÊ§°ÜÂ·¾¶£º${target}£¬²¢±£³ÖÆäÓàÂ·¾¶½á¹û²»±ä¡£`);
+  };
+
+  const regenerateComparison = async () => {
+    if (sending) return;
+    await submitMessage("Çë»ùÓÚµ±Ç°»á»°½á¹û£¬ÖØĞÂÉú³ÉÈıÂ·¾¶²îÒì¶Ô±È£¨½áÂÛ¡¢·çÏÕ¡¢ĞĞ¶¯½¨Òé£©²¢¸ø³öÅÅĞò¡£");
+  };
+
   return (
-    <div className="grid h-[72dvh] min-h-[580px] grid-cols-[300px_1fr] gap-3">
-      <aside className="overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-sm">
+    <div className="grid h-[72dvh] min-h-[580px] grid-cols-[288px_1fr] gap-3">
+      <aside className="overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3 text-sm">
         <div className="space-y-3">
-          <div>
-            <p className="text-xs text-[var(--text-muted)]">çŠ¶æ€</p>
-            <p>å…¨å±€è·¯å¾„: {pathStatus}</p>
-            <p>è½®æ¬¡æ‰§è¡Œ: {debateStatus}</p>
+          <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
+            <p className="text-xs font-medium text-[var(--text-muted)]">½ø¶È×ÜÀÀ</p>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${overallProgress}%` }} />
+            </div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">{`µ±Ç°½ø¶È ${overallProgress}%`}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(pathStage.tone)}`}>Â·¾¶£º{pathStage.label}</span>
+              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(debateStage.tone)}`}>ÂÖ´Î£º{debateStage.label}</span>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">{pathStage.detail}</p>
+            <p className="text-xs leading-5 text-[var(--text-muted)]">{debateStage.detail}</p>
           </div>
 
           <div>
-            <p className="text-xs text-[var(--text-muted)]">è·¯å¾„æ‰§è¡ŒçŠ¶æ€</p>
+            <p className="text-xs text-[var(--text-muted)]">Â·¾¶Ö´ĞĞ×´Ì¬</p>
             {PATH_KEYS.map((path) => (
-              <p key={`status-${path}`} className="text-xs">
-                {PATH_LABELS[path]}: {perPathStatus[path]}
-              </p>
+              <p key={`status-${path}`} className="text-xs">{PATH_LABELS[path]}: {perPathStatus[path]}</p>
             ))}
           </div>
 
           <div>
-            <p className="text-xs text-[var(--text-muted)]">è·¯å¾„æŠ¥å‘Š</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Â·¾¶½á¹ûÕªÒª</p>
             {PATH_KEYS.map((path) => {
               const report = pathReports[path];
+              const summary = report?.final_hypothesis || report?.hypothesis;
               return (
-                <div key={path} className="mt-2 rounded border border-[var(--border)] p-2">
-                  <p className="text-xs text-[var(--text-muted)]">{PATH_LABELS[path]}</p>
-                  <p className="text-sm">
-                    {report?.error
-                      ? `å¤±è´¥: ${report.error}`
-                      : report?.final_hypothesis || report?.hypothesis || "ç­‰å¾…ç»“æœ..."}
-                  </p>
-                  {typeof report?.confidence === "number" ? (
-                    <p className="text-xs">ç½®ä¿¡åº¦: {report.confidence}</p>
-                  ) : null}
+                <div key={path} className="mt-2 rounded-md border border-[var(--border)] bg-white p-2.5">
+                  <p className="text-xs font-medium text-[var(--text-muted)]">{PATH_LABELS[path]}</p>
+                  <p className="mt-1 line-clamp-2 text-sm">{report?.error ? `Ê§°Ü£º${report.error}` : summary || "µÈ´ı½á¹û..."}</p>
+                  {typeof report?.confidence === "number" ? <p className="mt-1 text-xs text-[var(--text-muted)]">{`ÖÃĞÅ¶È ${report.confidence}`}</p> : null}
                 </div>
               );
             })}
           </div>
 
           {synthesis?.summary ? (
-            <div className="rounded border border-[var(--border)] p-2">
-              <p className="text-xs text-[var(--text-muted)]">ç»¼åˆç»“è®º</p>
-              <p>{synthesis.summary}</p>
-              {synthesis.recommendation ? <p className="mt-1 text-xs">å»ºè®®: {synthesis.recommendation}</p> : null}
+            <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">×ÛºÏ½áÂÛ</p>
+              <p className="mt-1 text-sm leading-6">{synthesis.summary}</p>
+              {synthesis.recommendation ? <p className="mt-1 text-xs text-[var(--text-muted)]">½¨Òé£º{synthesis.recommendation}</p> : null}
             </div>
           ) : null}
 
           {typeof evaluation?.score === "number" ? (
-            <div className="rounded border border-[var(--border)] p-2">
-              <p className="text-xs text-[var(--text-muted)]">è¯„ä¼°åˆ†</p>
-              <p>{evaluation.score}</p>
-            </div>
-          ) : null}
-
-          {debateRounds.length > 0 ? (
-            <div className="rounded border border-[var(--border)] p-2">
-              <p className="text-xs text-[var(--text-muted)]">æœ€è¿‘åšå¼ˆ</p>
-              {debateRounds.slice(-6).map((item, idx) => (
-                <p key={`d-${item.path}-${item.round}-${idx}`} className="text-xs">
-                  R{item.round} {PATH_LABELS[item.path]}:{" "}
-                  {item.error ? `å¤±è´¥ - ${item.error}` : `${item.coach?.hypothesis ?? "-"} | ${item.secondme ?? "-"}`}
-                </p>
-              ))}
-              {judgeRounds.slice(-6).map((item, idx) => (
-                <p key={`j-${item.path}-${item.round}-${idx}`} className="text-xs">
-                  J{item.round} {PATH_LABELS[item.path]}:{" "}
-                  {item.error
-                    ? `å¤±è´¥ - ${item.error}`
-                    : `score=${item.judge?.round_score ?? "-"}, verdict=${item.judge?.verdict ?? "-"}, gap=${item.judge?.critical_gap ?? "-"}`}
-                </p>
-              ))}
+            <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">ÆÀ¹À·Ö</p>
+              <p className="mt-1 text-sm">{evaluation.score}</p>
             </div>
           ) : null}
         </div>
       </aside>
 
       <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+        <div className="border-b border-[var(--border)] bg-white px-3 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold tracking-tight">¹ì¼£¶Ô»°</h2>
+            <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs text-[var(--text-muted)]">
+              {sessionId ? `»á»° ${sessionId.slice(0, 8)}...` : "ĞÂ»á»°"}
+            </span>
+          </div>
+        </div>
+
+        <div className="border-b border-[var(--border)] bg-white px-3 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Â·¾¶²îÒì¶Ô±È</p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={retryFailedPaths}
+                disabled={sending || failedPaths.length === 0}
+                className="rounded-md border border-[var(--danger)] bg-[var(--danger-soft)] px-2.5 py-1 text-xs font-medium text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                ÖØÊÔÊ§°ÜÂ·¾¶
+              </button>
+              <button
+                type="button"
+                onClick={regenerateComparison}
+                disabled={sending}
+                className="rounded-md border border-[var(--accent)] bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                ÖØĞÂÉú³É¶Ô±È
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-2 overflow-hidden rounded-md border border-[var(--border)]">
+            <div className="grid grid-cols-[120px_1fr_1fr_1fr] bg-[var(--surface-2)] text-xs font-medium text-[var(--text-muted)]">
+              <div className="border-r border-[var(--border)] px-2 py-1.5">Î¬¶È</div>
+              {PATH_KEYS.map((path) => (
+                <div key={`head-${path}`} className="border-r border-[var(--border)] px-2 py-1.5 last:border-r-0">{PATH_LABELS[path]}</div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
+              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">½áÂÛ²îÒì</div>
+              {pathSummaries.map((item) => (
+                <div key={`summary-${item.path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
+                  <p className="line-clamp-2">{item.text}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
+              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">·çÏÕ²îÒì</div>
+              {PATH_KEYS.map((path) => {
+                const judgeGap = latestJudgeByPath[path]?.judge?.critical_gap;
+                const err = pathReports[path]?.error;
+                const text = err ? `Ê§°Ü£º${err}` : judgeGap || "ÔİÎŞ·çÏÕ²îÒìËµÃ÷";
+                return (
+                  <div key={`risk-${path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
+                    <p className="line-clamp-2">{text}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
+              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">ĞĞ¶¯½¨Òé</div>
+              {PATH_KEYS.map((path) => {
+                const action = latestJudgeByPath[path]?.judge?.next_constraint || latestDebateByPath[path]?.coach?.hypothesis;
+                return (
+                  <div key={`action-${path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
+                    <p className="line-clamp-2">{action || "ÔİÎŞĞĞ¶¯½¨Òé"}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
         <div ref={messageListRef} className="flex-1 space-y-3 overflow-y-auto bg-[var(--surface-2)] p-3">
           {messages.map((item, idx) => (
             <div
@@ -384,10 +525,28 @@ export function ChatWindow() {
         </div>
 
         <form ref={formRef} onSubmit={onSubmit} className="border-t border-[var(--border)] bg-[var(--surface)] p-3">
+          <div className="mb-2 flex flex-wrap gap-2">
+            {QUICK_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => applyQuickPrompt(prompt)}
+                disabled={sending}
+                className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs font-medium text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+
+          {failedPaths.length > 0 ? (
+            <p className="mb-2 text-xs text-[var(--danger)]">
+              {`¼ì²âµ½ ${failedPaths.length} ÌõÊ§°ÜÂ·¾¶£¬¿Éµã»÷ÉÏ·½¡°ÖØÊÔÊ§°ÜÂ·¾¶¡±¿ìËÙ»Ö¸´¡£`}
+            </p>
+          ) : null}
+
           <div className="flex gap-2">
-            <label htmlFor="chat-input" className="sr-only">
-              è¾“å…¥æ¶ˆæ¯
-            </label>
+            <label htmlFor="chat-input" className="sr-only">ÊäÈëÏûÏ¢</label>
             <textarea
               id="chat-input"
               value={input}
@@ -395,20 +554,26 @@ export function ChatWindow() {
               onKeyDown={onInputKeyDown}
               disabled={sending}
               rows={2}
-              aria-label="èŠå¤©è¾“å…¥æ¡†"
-              placeholder="ä¾‹å¦‚ï¼šå¦‚æœæˆ‘èµ°è·¨å­¦ç§‘æ–¹å‘ï¼Œä¸‰å¹´åæœ€å…³é”®çš„èƒ½åŠ›å·®å¼‚æ˜¯ä»€ä¹ˆï¼Ÿ"
+              aria-label="ÁÄÌìÊäÈë¿ò"
+              placeholder="ÀıÈç£ºÈç¹ûÎÒ×ß¿çÑ§¿Æ·½Ïò£¬ÈıÄêºó×î¹Ø¼üµÄÄÜÁ¦²îÒìÊÇÊ²Ã´£¿"
               className="flex-1 resize-none rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
             />
             <button
               type="submit"
               disabled={sending}
               aria-busy={sending}
-              className="rounded-lg bg-[#0f172a] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-sm font-medium text-white transition-all hover:-translate-y-px hover:shadow-[0_6px_14px_rgba(0,102,204,0.24)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
             >
-              {sending ? "ç”Ÿæˆä¸­..." : "å‘é€"}
+              {sending ? "Éú³ÉÖĞ..." : "·¢ËÍ"}
             </button>
           </div>
-          <p className="mt-2 text-xs text-[var(--text-muted)]">æŒ‰ Enter å‘é€ï¼ŒShift + Enter æ¢è¡Œ</p>
+
+          <p className="mt-2 text-xs text-[var(--text-muted)]">°´ Enter ·¢ËÍ£¬Shift + Enter »»ĞĞ</p>
+          {(debateRounds.length > 0 || judgeRounds.length > 0) && (
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              {`ÒÑÊÕ¼¯±çÂÛ ${debateRounds.length} Ìõ£¬²ÃÅĞ ${judgeRounds.length} Ìõ`}
+            </p>
+          )}
         </form>
       </section>
     </div>
