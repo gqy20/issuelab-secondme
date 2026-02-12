@@ -1,4 +1,4 @@
-"use client";
+ï»¿"use client";
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 
@@ -40,14 +40,14 @@ type JudgeRoundItem = {
 
 const PATH_KEYS: PathKey[] = ["radical", "conservative", "cross_domain"];
 const PATH_LABELS: Record<PathKey, string> = {
-  radical: "\u6fc0\u8fdb\u8def\u5f84",
-  conservative: "\u7a33\u5065\u8def\u5f84",
-  cross_domain: "\u8de8\u57df\u8def\u5f84",
+  radical: "Radical",
+  conservative: "Conservative",
+  cross_domain: "Cross-domain",
 };
 const QUICK_PROMPTS = [
-  "\u8bf7\u5bf9\u6bd4\u4e09\u6761\u8def\u5f84\u5728\u98ce\u9669\u4e0a\u7684\u6838\u5fc3\u5dee\u522b",
-  "\u57fa\u4e8e\u5f53\u524d\u7ed3\u8bba\u7ed9\u51fa\u4e00\u4e2a 30 \u5929\u6267\u884c\u8ba1\u5212",
-  "\u8bf7\u53ea\u805a\u7126\u53ef\u843d\u5730\u6027\uff0c\u91cd\u65b0\u7ed9\u51fa\u6392\u5e8f",
+  "Compare risk differences across the three paths.",
+  "Give me a practical 30-day execution plan.",
+  "Re-rank paths by feasibility only.",
 ];
 
 type StageMeta = {
@@ -57,11 +57,11 @@ type StageMeta = {
   tone: "neutral" | "running" | "done" | "warn";
 };
 
-const DEFAULT_ASSISTANT_TEXT = "\u6b22\u8fce\u8fdb\u5165\u591a\u8def\u5f84\u535a\u5f08\u6a21\u5f0f\uff0c\u8f93\u5165\u4f60\u7684\u95ee\u9898\u5f00\u59cb\u5206\u6790\u3002";
-const RUNNING_ASSISTANT_TEXT = "\u6b63\u5728\u8fdb\u884c\u591a\u8f6e\u535a\u5f08\uff0c\u8bf7\u7a0d\u5019...";
-const REQUEST_FAILED_TEXT = "\u8bf7\u6c42\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
-const EXEC_FAILED_TEXT = "\u6267\u884c\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002";
-const NETWORK_FAILED_TEXT = "\u7f51\u7edc\u5f02\u5e38\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
+const DEFAULT_ASSISTANT_TEXT = "Welcome to multi-path debate mode. Enter your question to start.";
+const RUNNING_ASSISTANT_TEXT = "Running multi-round debate. Please wait...";
+const REQUEST_FAILED_TEXT = "Request failed. Please retry later.";
+const EXEC_FAILED_TEXT = "Execution failed. Please retry.";
+const NETWORK_FAILED_TEXT = "Network error. Please retry later.";
 const MAX_ROUND_LOGS = 120;
 
 function pushCapped<T>(list: T[], item: T, max = MAX_ROUND_LOGS): T[] {
@@ -86,8 +86,8 @@ function parseSseBlock(block: string): SseEvent | null {
 function statusToStage(status: string, type: "path" | "debate"): StageMeta {
   if (status === "done") {
     return {
-      label: "\u5df2\u5b8c\u6210",
-      detail: type === "path" ? "\u8def\u5f84\u7ed3\u679c\u5df2\u6536\u6572" : "\u8fa9\u8bba\u8f6e\u6b21\u5df2\u7ed3\u675f",
+      label: "Done",
+      detail: type === "path" ? "Path outputs are ready" : "Debate rounds are completed",
       progress: 100,
       tone: "done",
     };
@@ -95,8 +95,8 @@ function statusToStage(status: string, type: "path" | "debate"): StageMeta {
 
   if (status === "partial_failed" || status === "failed") {
     return {
-      label: "\u90e8\u5206\u5931\u8d25",
-      detail: "\u53ef\u7ee7\u7eed\u67e5\u770b\u5df2\u6709\u8f93\u51fa\u6216\u91cd\u8bd5",
+      label: "Partially failed",
+      detail: "You can inspect existing output or retry failed paths",
       progress: 75,
       tone: "warn",
     };
@@ -104,16 +104,16 @@ function statusToStage(status: string, type: "path" | "debate"): StageMeta {
 
   if (status === "running") {
     return {
-      label: "\u8fdb\u884c\u4e2d",
-      detail: type === "path" ? "\u6b63\u5728\u751f\u6210\u591a\u8def\u5f84\u8bbe\u60f3" : "\u6b63\u5728\u8fdb\u884c\u89c2\u70b9\u4ea4\u9519\u9a8c\u8bc1",
+      label: "Running",
+      detail: type === "path" ? "Generating path hypotheses" : "Cross-validating path viewpoints",
       progress: 50,
       tone: "running",
     };
   }
 
   return {
-    label: "\u5f85\u5f00\u59cb",
-    detail: type === "path" ? "\u63d0\u95ee\u540e\u5c06\u81ea\u52a8\u5f00\u59cb" : "\u8def\u5f84\u5b8c\u6210\u540e\u8fdb\u5165\u8fa9\u8bba",
+    label: "Idle",
+    detail: type === "path" ? "Will start after submission" : "Will start after path stage",
     progress: 10,
     tone: "neutral",
   };
@@ -353,9 +353,9 @@ export function ChatWindow() {
   const pathSummaries = PATH_KEYS.map((path) => {
     const report = pathReports[path];
     const summary = report?.final_hypothesis || report?.hypothesis;
-    if (report?.error) return { path, text: `\u5931\u8d25\uff1a${report.error}` };
+    if (report?.error) return { path, text: `Failed: ${report.error}` };
     if (summary) return { path, text: summary };
-    return { path, text: "\u6682\u65e0\u7ed3\u679c" };
+    return { path, text: "No result yet" };
   });
 
   const applyQuickPrompt = (prompt: string) => {
@@ -365,13 +365,13 @@ export function ChatWindow() {
 
   const retryFailedPaths = async () => {
     if (sending || failedPaths.length === 0) return;
-    const target = failedPaths.map((path) => PATH_LABELS[path]).join("¡¢");
-    await submitMessage(`Çë½öÖØÊÔÒÔÏÂÊ§°ÜÂ·¾¶£º${target}£¬²¢±£³ÖÆäÓàÂ·¾¶½á¹û²»±ä¡£`);
+    const target = failedPaths.map((path) => PATH_LABELS[path]).join(", ");
+    await submitMessage(`Retry only failed paths: ${target}. Keep successful paths unchanged.`);
   };
 
   const regenerateComparison = async () => {
     if (sending) return;
-    await submitMessage("Çë»ùÓÚµ±Ç°»á»°½á¹û£¬ÖØÐÂÉú³ÉÈýÂ·¾¶²îÒì¶Ô±È£¨½áÂÛ¡¢·çÏÕ¡¢ÐÐ¶¯½¨Òé£©²¢¸ø³öÅÅÐò¡£");
+    await submitMessage("Regenerate a 3-path comparison for conclusion, risk, and action with ranking.");
   };
 
   return (
@@ -379,36 +379,36 @@ export function ChatWindow() {
       <aside className="overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3 text-sm">
         <div className="space-y-3">
           <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
-            <p className="text-xs font-medium text-[var(--text-muted)]">½ø¶È×ÜÀÀ</p>
+            <p className="text-xs font-medium text-[var(--text-muted)]">Progress overview</p>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
               <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${overallProgress}%` }} />
             </div>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">{`µ±Ç°½ø¶È ${overallProgress}%`}</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">{`Current progress ${overallProgress}%`}</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(pathStage.tone)}`}>Â·¾¶£º{pathStage.label}</span>
-              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(debateStage.tone)}`}>ÂÖ´Î£º{debateStage.label}</span>
+              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(pathStage.tone)}`}>Path: {pathStage.label}</span>
+              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(debateStage.tone)}`}>Debate: {debateStage.label}</span>
             </div>
             <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">{pathStage.detail}</p>
             <p className="text-xs leading-5 text-[var(--text-muted)]">{debateStage.detail}</p>
           </div>
 
           <div>
-            <p className="text-xs text-[var(--text-muted)]">Â·¾¶Ö´ÐÐ×´Ì¬</p>
+            <p className="text-xs text-[var(--text-muted)]">Path runtime status</p>
             {PATH_KEYS.map((path) => (
               <p key={`status-${path}`} className="text-xs">{PATH_LABELS[path]}: {perPathStatus[path]}</p>
             ))}
           </div>
 
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Â·¾¶½á¹ûÕªÒª</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Path summary</p>
             {PATH_KEYS.map((path) => {
               const report = pathReports[path];
               const summary = report?.final_hypothesis || report?.hypothesis;
               return (
                 <div key={path} className="mt-2 rounded-md border border-[var(--border)] bg-white p-2.5">
                   <p className="text-xs font-medium text-[var(--text-muted)]">{PATH_LABELS[path]}</p>
-                  <p className="mt-1 line-clamp-2 text-sm">{report?.error ? `Ê§°Ü£º${report.error}` : summary || "µÈ´ý½á¹û..."}</p>
-                  {typeof report?.confidence === "number" ? <p className="mt-1 text-xs text-[var(--text-muted)]">{`ÖÃÐÅ¶È ${report.confidence}`}</p> : null}
+                  <p className="mt-1 line-clamp-2 text-sm">{report?.error ? `Failed: ${report.error}` : summary || "Waiting for result..."}</p>
+                  {typeof report?.confidence === "number" ? <p className="mt-1 text-xs text-[var(--text-muted)]">{`Confidence ${report.confidence}`}</p> : null}
                 </div>
               );
             })}
@@ -416,15 +416,15 @@ export function ChatWindow() {
 
           {synthesis?.summary ? (
             <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">×ÛºÏ½áÂÛ</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Synthesis</p>
               <p className="mt-1 text-sm leading-6">{synthesis.summary}</p>
-              {synthesis.recommendation ? <p className="mt-1 text-xs text-[var(--text-muted)]">½¨Òé£º{synthesis.recommendation}</p> : null}
+              {synthesis.recommendation ? <p className="mt-1 text-xs text-[var(--text-muted)]">Recommendation: {synthesis.recommendation}</p> : null}
             </div>
           ) : null}
 
           {typeof evaluation?.score === "number" ? (
             <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">ÆÀ¹À·Ö</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Evaluation score</p>
               <p className="mt-1 text-sm">{evaluation.score}</p>
             </div>
           ) : null}
@@ -434,16 +434,16 @@ export function ChatWindow() {
       <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
         <div className="border-b border-[var(--border)] bg-white px-3 py-2.5">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold tracking-tight">¹ì¼£¶Ô»°</h2>
+            <h2 className="text-sm font-semibold tracking-tight">Trajectory chat</h2>
             <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs text-[var(--text-muted)]">
-              {sessionId ? `»á»° ${sessionId.slice(0, 8)}...` : "ÐÂ»á»°"}
+              {sessionId ? `Session ${sessionId.slice(0, 8)}...` : "New session"}
             </span>
           </div>
         </div>
 
         <div className="border-b border-[var(--border)] bg-white px-3 py-2.5">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Â·¾¶²îÒì¶Ô±È</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Path difference matrix</p>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -451,7 +451,7 @@ export function ChatWindow() {
                 disabled={sending || failedPaths.length === 0}
                 className="rounded-md border border-[var(--danger)] bg-[var(--danger-soft)] px-2.5 py-1 text-xs font-medium text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                ÖØÊÔÊ§°ÜÂ·¾¶
+                Retry failed paths
               </button>
               <button
                 type="button"
@@ -459,21 +459,21 @@ export function ChatWindow() {
                 disabled={sending}
                 className="rounded-md border border-[var(--accent)] bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                ÖØÐÂÉú³É¶Ô±È
+                Regenerate comparison
               </button>
             </div>
           </div>
 
           <div className="mt-2 overflow-hidden rounded-md border border-[var(--border)]">
             <div className="grid grid-cols-[120px_1fr_1fr_1fr] bg-[var(--surface-2)] text-xs font-medium text-[var(--text-muted)]">
-              <div className="border-r border-[var(--border)] px-2 py-1.5">Î¬¶È</div>
+              <div className="border-r border-[var(--border)] px-2 py-1.5">Dimension</div>
               {PATH_KEYS.map((path) => (
                 <div key={`head-${path}`} className="border-r border-[var(--border)] px-2 py-1.5 last:border-r-0">{PATH_LABELS[path]}</div>
               ))}
             </div>
 
             <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">½áÂÛ²îÒì</div>
+              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">Conclusion</div>
               {pathSummaries.map((item) => (
                 <div key={`summary-${item.path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
                   <p className="line-clamp-2">{item.text}</p>
@@ -482,11 +482,11 @@ export function ChatWindow() {
             </div>
 
             <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">·çÏÕ²îÒì</div>
+              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">Risk</div>
               {PATH_KEYS.map((path) => {
                 const judgeGap = latestJudgeByPath[path]?.judge?.critical_gap;
                 const err = pathReports[path]?.error;
-                const text = err ? `Ê§°Ü£º${err}` : judgeGap || "ÔÝÎÞ·çÏÕ²îÒìËµÃ÷";
+                const text = err ? `Failed: ${err}` : judgeGap || "No explicit risk delta";
                 return (
                   <div key={`risk-${path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
                     <p className="line-clamp-2">{text}</p>
@@ -496,12 +496,12 @@ export function ChatWindow() {
             </div>
 
             <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">ÐÐ¶¯½¨Òé</div>
+              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">Action</div>
               {PATH_KEYS.map((path) => {
                 const action = latestJudgeByPath[path]?.judge?.next_constraint || latestDebateByPath[path]?.coach?.hypothesis;
                 return (
                   <div key={`action-${path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
-                    <p className="line-clamp-2">{action || "ÔÝÎÞÐÐ¶¯½¨Òé"}</p>
+                    <p className="line-clamp-2">{action || "No action recommendation"}</p>
                   </div>
                 );
               })}
@@ -541,12 +541,12 @@ export function ChatWindow() {
 
           {failedPaths.length > 0 ? (
             <p className="mb-2 text-xs text-[var(--danger)]">
-              {`¼ì²âµ½ ${failedPaths.length} ÌõÊ§°ÜÂ·¾¶£¬¿Éµã»÷ÉÏ·½¡°ÖØÊÔÊ§°ÜÂ·¾¶¡±¿ìËÙ»Ö¸´¡£`}
+              {`Detected ${failedPaths.length} failed path(s). Use \"Retry failed paths\" to recover quickly.`}
             </p>
           ) : null}
 
           <div className="flex gap-2">
-            <label htmlFor="chat-input" className="sr-only">ÊäÈëÏûÏ¢</label>
+            <label htmlFor="chat-input" className="sr-only">Input message</label>
             <textarea
               id="chat-input"
               value={input}
@@ -554,8 +554,8 @@ export function ChatWindow() {
               onKeyDown={onInputKeyDown}
               disabled={sending}
               rows={2}
-              aria-label="ÁÄÌìÊäÈë¿ò"
-              placeholder="ÀýÈç£ºÈç¹ûÎÒ×ß¿çÑ§¿Æ·½Ïò£¬ÈýÄêºó×î¹Ø¼üµÄÄÜÁ¦²îÒìÊÇÊ²Ã´£¿"
+              aria-label="Chat input"
+              placeholder="Example: If I switch to a cross-disciplinary path, what capability gap matters most in 3 years?"
               className="flex-1 resize-none rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
             />
             <button
@@ -564,14 +564,14 @@ export function ChatWindow() {
               aria-busy={sending}
               className="rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-sm font-medium text-white transition-all hover:-translate-y-px hover:shadow-[0_6px_14px_rgba(0,102,204,0.24)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
             >
-              {sending ? "Éú³ÉÖÐ..." : "·¢ËÍ"}
+              {sending ? "Generating..." : "Send"}
             </button>
           </div>
 
-          <p className="mt-2 text-xs text-[var(--text-muted)]">°´ Enter ·¢ËÍ£¬Shift + Enter »»ÐÐ</p>
+          <p className="mt-2 text-xs text-[var(--text-muted)]">Press Enter to send, Shift + Enter for newline</p>
           {(debateRounds.length > 0 || judgeRounds.length > 0) && (
             <p className="mt-1 text-xs text-[var(--text-muted)]">
-              {`ÒÑÊÕ¼¯±çÂÛ ${debateRounds.length} Ìõ£¬²ÃÅÐ ${judgeRounds.length} Ìõ`}
+              {`Collected debate ${debateRounds.length} entries, judge ${judgeRounds.length} entries`}
             </p>
           )}
         </form>
