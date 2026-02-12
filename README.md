@@ -93,6 +93,8 @@ npm test
 - `FORUM_MENTION_TARGET`（默认 `@secondme`）
 - `FORUM_LIST_PATH`（默认 `/mentions`）
 - `FORUM_REPLY_PATH`（默认 `/replies`）
+- `FORUM_MIN_CONTENT_LENGTH`（默认 `12`，过滤过短提及）
+- `FORUM_MAX_REPLY_LENGTH`（默认 `1200`，回复超长自动摘要）
 
 预留未启用：
 

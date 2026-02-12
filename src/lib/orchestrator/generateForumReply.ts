@@ -1,4 +1,4 @@
-import {
+﻿import {
   callCoach,
   callEvaluate,
   callJudge,
@@ -7,6 +7,7 @@ import {
   type JsonRecord,
   type PathType,
 } from "@/lib/system-agents/runtime";
+import { buildStructuredForumReply } from "@/lib/forum/defaults";
 
 type DebateTurn = {
   round: number;
@@ -120,13 +121,10 @@ export async function generateForumReply(input: string) {
     synthesis,
   });
 
-  const text = [
-    `结论：${synthesis.summary || synthesis.recommendation || "建议优先采用稳健可执行路径。"}`,
-    synthesis.recommendation ? `建议：${synthesis.recommendation}` : "",
-    `评估分：${evaluation.score}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const text = buildStructuredForumReply({
+    synthesis: synthesis as JsonRecord,
+    evaluation: evaluation as JsonRecord,
+  });
 
   return { text, synthesis, evaluation, reports };
 }

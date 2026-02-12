@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ForumClient } from "@/lib/forum/client";
 import { assertCronAuth } from "@/lib/cron-auth";
+import { isLowValueForumContent } from "@/lib/forum/defaults";
 
 export const runtime = "nodejs";
 
@@ -29,10 +30,15 @@ export async function GET(request: Request) {
     const comments = await forumClient.listMentions(cursor.lastSeenAt.toISOString(), mentionTarget);
 
     let enqueued = 0;
+    let skippedLowValue = 0;
     let newestSeenAt = cursor.lastSeenAt;
 
     for (const comment of comments) {
       if (!mentionMatched(comment.content, mentionTarget)) continue;
+      if (isLowValueForumContent(comment.content, mentionTarget)) {
+        skippedLowValue += 1;
+        continue;
+      }
       const dedupeKey = `${comment.threadId}:${comment.id}:${mentionTarget}`;
 
       await prisma.mentionTask.upsert({
@@ -70,6 +76,7 @@ export async function GET(request: Request) {
         cursor: newestSeenAt.toISOString(),
         fetched: comments.length,
         enqueued,
+        skippedLowValue,
       },
     });
   } catch (error) {

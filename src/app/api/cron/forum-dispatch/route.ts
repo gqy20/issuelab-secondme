@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ForumClient } from "@/lib/forum/client";
 import { assertCronAuth } from "@/lib/cron-auth";
 import { generateForumReply } from "@/lib/orchestrator/generateForumReply";
+import { buildFallbackForumReply, sanitizeForumErrorMessage } from "@/lib/forum/defaults";
 
 export const runtime = "nodejs";
 
@@ -47,22 +48,40 @@ export async function GET(request: Request) {
 
       processed += 1;
       try {
-        const result = await generateForumReply(task.content);
+        const attempts = task.attempts + 1;
+        let resultPayload: Record<string, unknown>;
+        let replyText = "";
+
+        try {
+          const result = await generateForumReply(task.content);
+          replyText = result.text;
+          resultPayload = {
+            text: result.text,
+            synthesis: result.synthesis,
+            evaluation: result.evaluation,
+            fallback: false,
+          };
+        } catch (generationError) {
+          replyText = buildFallbackForumReply();
+          resultPayload = {
+            text: replyText,
+            fallback: true,
+            generationError: sanitizeForumErrorMessage(generationError),
+          };
+        }
+
         await forumClient.reply({
           threadId: task.threadId,
           commentId: task.commentId,
-          content: result.text,
+          content: replyText,
         });
 
         await prisma.mentionTask.update({
           where: { id: task.id },
           data: {
             status: MentionTaskStatus.done,
-            result: JSON.stringify({
-              text: result.text,
-              synthesis: result.synthesis,
-              evaluation: result.evaluation,
-            }),
+            attempts,
+            result: JSON.stringify(resultPayload),
           },
         });
         succeeded += 1;
@@ -75,7 +94,7 @@ export async function GET(request: Request) {
             attempts,
             nextRunAt: nextRetryAt(attempts),
             result: JSON.stringify({
-              error: error instanceof Error ? error.message : "dispatch failed",
+              error: sanitizeForumErrorMessage(error),
             }),
           },
         });
