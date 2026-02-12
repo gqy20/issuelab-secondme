@@ -31,6 +31,9 @@ IssueLab x SecondMe 从用户的个人经历、能力结构与研究目标出发
 - `POST /api/note`
 - `GET /api/cron/forum-poll`
 - `GET /api/cron/forum-dispatch`
+- `POST /api/forum/publish`
+- `GET /api/forum/publish-tasks`
+- `POST /api/forum/publish-tasks/:id/retry`
 
 `/api/chat` 主要 SSE 事件：
 

@@ -19,6 +19,7 @@ model User {
   chatSessions   ChatSession[]
   notes          UserNote[]
   tasks          Task[]
+  forumPublishes ForumPublishTask[]
 
   @@map("users")
 }
@@ -177,6 +178,25 @@ model MentionTask {
 
   @@index([status, nextRunAt])
   @@map("mention_tasks")
+}
+
+model ForumPublishTask {
+  id        String            @id @default(cuid())
+  userId    String            @map("user_id")
+  threadId  String            @map("thread_id")
+  commentId String            @map("comment_id")
+  content   String
+  status    MentionTaskStatus @default(pending)
+  attempts  Int               @default(0)
+  nextRunAt DateTime          @default(now()) @map("next_run_at")
+  result    String?
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, nextRunAt])
+  @@map("forum_publish_tasks")
 }
 
 enum MessageRole {

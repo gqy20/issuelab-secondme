@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ForumConsole } from "@/components/forum/ForumConsole";
+import { ManualPublishPanel } from "@/components/forum/ManualPublishPanel";
 
 export default function ForumPage() {
   return (
@@ -13,6 +14,7 @@ export default function ForumPage() {
             返回探索台
           </Link>
         </div>
+        <ManualPublishPanel />
         <ForumConsole />
       </main>
     </div>
