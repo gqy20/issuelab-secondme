@@ -28,6 +28,15 @@ type EvaluationOutput = {
   next_iteration: string[];
 };
 
+type JudgeOutput = {
+  path: PathType;
+  round: number;
+  round_score: number;
+  critical_gap: string;
+  next_constraint: string;
+  verdict: "accept" | "revise" | "reject";
+};
+
 function getBaseUrl() {
   const fromEnv = process.env.ANTHROPIC_BASE_URL?.trim();
   if (fromEnv) return fromEnv.replace(/\/$/, "");
@@ -182,6 +191,14 @@ function evaluatePrompt() {
   ].join("\n");
 }
 
+function judgePrompt() {
+  return [
+    "You are a strict debate judge for path planning.",
+    "Return JSON only. No markdown.",
+    "Required fields: path, round, round_score(0-100), critical_gap, next_constraint, verdict(accept|revise|reject).",
+  ].join("\n");
+}
+
 export async function callCoach(
   path: PathType,
   params: { taskInput: string; round: number; context: string },
@@ -210,10 +227,41 @@ export async function callPathReport(params: {
   transcript: JsonRecord;
 }): Promise<JsonRecord> {
   return runJsonTask<JsonRecord>({
-    systemPrompt:
-      "You format path transcript into a concise report JSON. Return JSON only.",
+    systemPrompt: [
+      "You summarize a path debate transcript into final report JSON.",
+      "Return JSON only.",
+      "Fields: path, final_hypothesis, key_turning_points(array), unresolved_risks(array), execution_plan(array), confidence(0-100).",
+    ].join("\n"),
     userPrompt: JSON.stringify(params),
   });
+}
+
+export async function callJudge(params: {
+  path: PathType;
+  round: number;
+  taskInput: string;
+  coach: JsonRecord;
+  secondme: string;
+  history: JsonRecord[];
+  constraint?: string;
+}): Promise<JudgeOutput> {
+  const json = await runJsonTask<JudgeOutput>({
+    systemPrompt: judgePrompt(),
+    userPrompt: JSON.stringify(params),
+  });
+
+  const verdictRaw = String(json.verdict ?? "revise");
+  const verdict: JudgeOutput["verdict"] =
+    verdictRaw === "accept" || verdictRaw === "reject" ? verdictRaw : "revise";
+
+  return {
+    path: params.path,
+    round: params.round,
+    round_score: Number(json.round_score ?? 0),
+    critical_gap: String(json.critical_gap ?? ""),
+    next_constraint: String(json.next_constraint ?? ""),
+    verdict,
+  };
 }
 
 export async function callSynthesize(params: {
