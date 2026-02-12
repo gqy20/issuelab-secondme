@@ -245,7 +245,7 @@ export function ChatWindow() {
   };
 
   return (
-    <div className="grid h-[72dvh] min-h-[580px] grid-cols-[300px,minmax(0,1fr)] gap-3">
+    <div className="grid h-[72dvh] min-h-[580px] grid-cols-[300px_1fr] gap-3">
       <aside className="overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-sm">
         <div className="space-y-3">
           <div>

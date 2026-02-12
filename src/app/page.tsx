@@ -19,7 +19,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="grid grid-cols-[320px,minmax(0,1fr)] gap-4">
+        <section className="grid grid-cols-[320px_1fr] gap-4">
           <aside className="sticky top-8 h-fit space-y-5">
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_6px_18px_rgba(17,24,39,0.04)]">
               <UserProfile />
