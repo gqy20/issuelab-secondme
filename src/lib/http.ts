@@ -29,7 +29,7 @@ export async function requestApi<T>(
         code: response.ok ? 0 : response.status,
         status: response.status,
         ok: response.ok,
-        message: response.ok ? undefined : `è¯·æ±‚å¤±è´¥ï¼ˆ${response.status}ï¼‰`,
+        message: response.ok ? undefined : `ÇëÇóÊ§°Ü£¨${response.status}£©`,
       };
     }
 
@@ -46,7 +46,7 @@ export async function requestApi<T>(
         code: response.status,
         status: response.status,
         ok: false,
-        message: "æœåŠ¡å“åº”æ ¼å¼å¼‚å¸¸",
+        message: "·şÎñÏìÓ¦¸ñÊ½Òì³£",
       };
     }
   } catch (error) {
@@ -55,7 +55,7 @@ export async function requestApi<T>(
       code: -1,
       status: 0,
       ok: false,
-      message: isTimeout ? "è¯·æ±‚è¶…æ—¶ï¼Œè¯·ç¨åé‡è¯•" : "ç½‘ç»œè¯·æ±‚å¤±è´¥ï¼Œè¯·ç¨åé‡è¯•",
+      message: isTimeout ? "ÇëÇó³¬Ê±£¬ÇëÉÔºóÖØÊÔ" : "ÍøÂçÇëÇóÊ§°Ü£¬ÇëÉÔºóÖØÊÔ",
     };
   } finally {
     clearTimeout(timer);

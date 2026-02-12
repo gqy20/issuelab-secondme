@@ -44,6 +44,13 @@ const PATH_LABELS: Record<PathKey, string> = {
   conservative: "稳健路径",
   cross_domain: "跨域路径",
 };
+const STATUS_LABELS: Record<StatusValue, string> = {
+  idle: "待开始",
+  running: "进行中",
+  done: "已完成",
+  failed: "失败",
+  partial_failed: "部分失败",
+};
 const QUICK_PROMPTS = [
   "请对比三条路径在风险上的核心差别",
   "基于当前结果给出 30 天行动计划",
@@ -339,6 +346,7 @@ export function ChatWindow() {
   const latestDebateByPath = pickLatestByPath(debateRounds);
   const latestJudgeByPath = pickLatestByPath(judgeRounds);
   const failedPaths = PATH_KEYS.filter((path) => Boolean(pathReports[path]?.error));
+  const isAllPathIdle = PATH_KEYS.every((path) => perPathStatus[path] === "idle");
 
   const pathSummaries = useMemo(
     () =>
@@ -394,11 +402,17 @@ export function ChatWindow() {
 
           <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">路径状态</p>
-            <div className="mt-2 space-y-1">
-              {PATH_KEYS.map((path) => (
-                <p key={`status-${path}`} className="text-xs">{PATH_LABELS[path]}: {perPathStatus[path]}</p>
-              ))}
-            </div>
+            {isAllPathIdle ? (
+              <p className="mt-2 text-xs text-[var(--text-muted)]">发送首条问题后开始运行</p>
+            ) : (
+              <div className="mt-2 space-y-1">
+                {PATH_KEYS.map((path) => (
+                  <p key={`status-${path}`} className="text-xs">
+                    {PATH_LABELS[path]}：{STATUS_LABELS[perPathStatus[path]]}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
 
           {hasPathOutput ? (
