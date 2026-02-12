@@ -83,6 +83,8 @@ export function ChatWindow() {
 
       <div
         ref={messageListRef}
+        aria-live="polite"
+        aria-label="聊天消息列表"
         className="flex-1 space-y-3 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3"
       >
         {messages.map((item, idx) => (
@@ -100,18 +102,24 @@ export function ChatWindow() {
       </div>
 
       <form ref={formRef} onSubmit={onSubmit} className="mt-3 flex gap-2">
+        <label htmlFor="chat-input" className="sr-only">
+          输入消息
+        </label>
         <textarea
+          id="chat-input"
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={onInputKeyDown}
           disabled={sending}
           rows={2}
+          aria-label="聊天输入框"
           placeholder="例如：如果我走跨学科路线，三年后最关键的能力差是什么？"
           className="flex-1 resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-slate-100"
         />
         <button
           type="submit"
           disabled={sending}
+          aria-busy={sending}
           className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {sending ? "发送中" : "发送"}
