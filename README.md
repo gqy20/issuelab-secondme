@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# IssueLab x SecondMe
 
-## Getting Started
+一个基于 Next.js 的 SecondMe 集成项目，用于在 IssueLab 场景中进行多轨迹讨论、用户信息读取与笔记沉淀。
 
-First, run the development server:
+## 技术栈
+
+- Next.js 16（App Router）
+- TypeScript
+- Tailwind CSS 4
+- Prisma（已包含 schema 与配置）
+
+## 已实现能力
+
+- OAuth 登录流程路由
+  - `GET /api/auth/login`
+  - `GET /api/auth/callback`
+  - `POST /api/auth/logout`
+- 用户信息模块
+  - `GET /api/user/info`
+  - `GET /api/user/shades`
+- 对话与会话模块
+  - `POST /api/chat`
+  - `GET /api/sessions`
+- 笔记模块
+  - `POST /api/note`
+- 中文前端界面与交互组件
+  - 登录按钮、用户侧栏、对话窗口
+
+## 本地启动
+
+1. 安装依赖
+
+```bash
+npm install
+```
+
+2. 启动开发服务
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. 访问
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`http://localhost:3000`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 构建验证
 
-## Learn More
+```bash
+npm run build
+```
 
-To learn more about Next.js, take a look at the following resources:
+## 环境变量
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+项目使用 `.env.local`，核心变量包括：
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `SECONDME_CLIENT_ID`
+- `SECONDME_CLIENT_SECRET`
+- `SECONDME_REDIRECT_URI`
+- `SECONDME_API_BASE_URL`
+- `SECONDME_OAUTH_URL`
+- `SECONDME_TOKEN_ENDPOINT`
+- `SECONDME_REFRESH_ENDPOINT`
+- `DATABASE_URL`
 
-## Deploy on Vercel
+## 目录说明
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `src/app`：页面与 API 路由
+- `src/components`：前端组件
+- `src/lib`：鉴权、服务请求与数据访问封装
+- `prisma`：Prisma schema
+- `.secondme`：SecondMe 工作流状态文件（已忽略）
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
