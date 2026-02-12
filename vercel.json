@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/forum-poll",
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/cron/forum-dispatch",
+      "schedule": "*/1 * * * *"
+    }
+  ]
+}

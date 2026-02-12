@@ -1,60 +1,70 @@
 ﻿# IssueLab x SecondMe
 
-一个基于 Next.js 的 SecondMe 集成项目，用于在 IssueLab 场景中进行多轨迹讨论、用户信息读取与笔记沉淀。
+IssueLab x SecondMe 从用户的个人经历、能力结构与研究目标出发，先构建“研究分身”，再由多位专家智能体协同推演三条路径：
 
-## 技术栈
+- `radical`（激进突破）
+- `conservative`（稳健推进）
+- `cross_domain`（跨域融合）
 
-- Next.js 16（App Router）
-- TypeScript
-- Tailwind CSS 4
-- Prisma（已包含 schema 与配置）
+目标不是产出泛化建议，而是给出对“这个用户”可解释、可执行、可复盘的下一步科研决策。
 
-## 已实现能力
+## 当前状态
 
-- OAuth 登录流程路由
-  - `GET /api/auth/login`
-  - `GET /api/auth/callback`
-  - `POST /api/auth/logout`
-- 用户信息模块
-  - `GET /api/user/info`
-  - `GET /api/user/shades`
-- 对话与会话模块
-  - `POST /api/chat`
-  - `GET /api/sessions`
-  - 支持 SSE 流式事件：`delta`、`path_report`、`synthesis`、`evaluation`
-- 笔记模块
-  - `POST /api/note`
-- 中文前端界面与交互组件
-  - 登录按钮、用户侧栏、对话窗口
-  - 三路径系统智能体面板（激进 / 保守 / 跨域）
+当前仓库处于 `AI 决策引擎 + 基础交互` 阶段，已具备：
+
+- OAuth 登录与会话管理
+- SecondMe 用户信息与兴趣标签读取
+- 三路径多轮推演（Coach / SecondMe / Judge）
+- 推演落库（Task / Run / PathRun / Turn / Report / Evaluation）
+- SSE 实时事件推送与前端可视化
+- 笔记本地兜底保存（上游异常时保底）
+
+## API 概览
+
+- `GET /api/auth/login`
+- `GET /api/auth/callback`
+- `POST /api/auth/logout`
+- `GET /api/user/info`
+- `GET /api/user/shades`
+- `POST /api/chat`
+- `GET /api/sessions`
+- `POST /api/note`
+- `GET /api/cron/forum-poll`
+- `GET /api/cron/forum-dispatch`
+
+`/api/chat` 主要 SSE 事件：
+
+- `session`
+- `path_status`
+- `debate_status`
+- `debate_round`
+- `judge_round`
+- `path_report`
+- `synthesis`
+- `evaluation`
+- `final_answer`
+- `done`
+- `error`
 
 ## 本地启动
 
-1. 安装依赖
-
 ```bash
 npm install
-```
-
-2. 启动开发服务
-
-```bash
 npm run dev
 ```
 
-3. 访问
+访问 `http://localhost:3000`
 
-`http://localhost:3000`
-
-## 构建验证
+## 构建与测试
 
 ```bash
 npm run build
+npm test
 ```
 
 ## 环境变量
 
-项目使用 `.env.local`，核心变量包括：
+必需：
 
 - `SECONDME_CLIENT_ID`
 - `SECONDME_CLIENT_SECRET`
@@ -62,35 +72,51 @@ npm run build
 - `SECONDME_API_BASE_URL`
 - `SECONDME_OAUTH_URL`
 - `SECONDME_TOKEN_ENDPOINT`
-- `SECONDME_REFRESH_ENDPOINT`
 - `DATABASE_URL`
-- `SYSTEM_AGENT_ENABLED`（可选，默认开启；`false` 为关闭）
-- `SYSTEM_AGENT_DEBATE_ROUNDS`（可选，默认 `10`）
-- `ANTHROPIC_BASE_URL`（可选，默认 `https://api.anthropic.com`）
-- `ANTHROPIC_AUTH_TOKEN`（推荐，Anthropic 兼容网关 token）
-- `ANTHROPIC_API_KEY`（可选，若未提供 `ANTHROPIC_AUTH_TOKEN` 则使用此项）
-- `ANTHROPIC_MODEL`（可选，未配置时回退到默认模型）
-- `CLAUDE_AGENT_MODEL`（可选，作为模型名兼容项）
-- `ANTHROPIC_MAX_TOKENS`（可选，默认 `1200`）
 
-## 轻量 Messages API（三路径系统智能体）
+可选：
 
-后端使用 Anthropic Messages API（兼容 Anthropic 协议的网关也可），在每次 SecondMe 主回复完成后，自动触发三条系统路径分析：
+- `SYSTEM_AGENT_ENABLED`（默认开启；设为 `false` 可关闭系统智能体）
+- `SYSTEM_AGENT_DEBATE_ROUNDS`（默认 `10`，最大 `10`）
+- `ANTHROPIC_BASE_URL`（默认 `https://api.anthropic.com`）
+- `ANTHROPIC_AUTH_TOKEN`（推荐）
+- `ANTHROPIC_API_KEY`（与 `ANTHROPIC_AUTH_TOKEN` 二选一）
+- `ANTHROPIC_MODEL`
+- `CLAUDE_AGENT_MODEL`
+- `ANTHROPIC_MAX_TOKENS`（默认 `1200`）
+- `CRON_SECRET`（启用论坛轮询时必需）
+- `FORUM_API_BASE_URL`（论坛 API 基础地址）
+- `FORUM_API_TOKEN`（论坛 API 令牌）
+- `FORUM_MENTION_TARGET`（默认 `@secondme`）
+- `FORUM_LIST_PATH`（默认 `/mentions`）
+- `FORUM_REPLY_PATH`（默认 `/replies`）
 
-- `radical`：激进创新路径
-- `conservative`：稳健保守路径
-- `cross_domain`：跨学科融合路径
+预留未启用：
 
-并返回：
+- `SECONDME_REFRESH_ENDPOINT`（当前代码未使用）
 
-- `path_report`：每条路径的结构化建议
-- `synthesis`：三路径综合结论
-- `evaluation`：综合结论评估分与改进点
+## 论坛自动回复（最小实现）
 
-## 目录说明
+新增了基于轮询的自动触发能力：
 
-- `src/app`：页面与 API 路由
-- `src/components`：前端组件
-- `src/lib`：鉴权、服务请求与数据访问封装
-- `prisma`：Prisma schema
-- `.secondme`：SecondMe 工作流状态文件（已忽略）
+1. `GET /api/cron/forum-poll`
+2. `GET /api/cron/forum-dispatch`
+
+默认通过 `vercel.json` 每 2 分钟轮询提及，每 1 分钟执行派发。两个接口都要求：
+
+- `Authorization: Bearer ${CRON_SECRET}`
+  或
+- `x-cron-secret: ${CRON_SECRET}`
+
+流程：
+
+1. 轮询论坛新评论，匹配 `FORUM_MENTION_TARGET`
+2. 入队到 `mention_tasks`（`dedupe_key` 防重）
+3. 派发器执行三路径系统智能体分析
+4. 自动回写论坛回复并更新任务状态
+
+## 文档导航
+
+- `docs/claude-agent-sdk-system-agents.md`：系统智能体实现与 SSE 协议
+- `docs/product-and-user-analysis.md`：产品与用户视角评估
+- `docs/user-foundation.md`：用户基础层能力与最小闭环

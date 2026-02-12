@@ -153,6 +153,32 @@ model Evaluation {
   @@map("evaluations")
 }
 
+model ForumCursor {
+  id         String   @id
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("forum_cursors")
+}
+
+model MentionTask {
+  id          String            @id @default(cuid())
+  dedupeKey   String            @unique @map("dedupe_key")
+  threadId    String            @map("thread_id")
+  commentId   String            @map("comment_id")
+  authorId    String?           @map("author_id")
+  content     String
+  status      MentionTaskStatus @default(pending)
+  attempts    Int               @default(0)
+  nextRunAt   DateTime          @default(now()) @map("next_run_at")
+  result      String?
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@index([status, nextRunAt])
+  @@map("mention_tasks")
+}
+
 enum MessageRole {
   user
   assistant
@@ -169,4 +195,11 @@ enum PathType {
   radical
   conservative
   cross_domain
+}
+
+enum MentionTaskStatus {
+  pending
+  running
+  done
+  failed
 }
