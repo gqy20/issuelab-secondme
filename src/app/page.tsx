@@ -1,4 +1,4 @@
-import { ChatWindow } from "@/components/ChatWindow";
+﻿import { ChatWindow } from "@/components/ChatWindow";
 import { LoginButton } from "@/components/LoginButton";
 import { UserProfile } from "@/components/UserProfile";
 
@@ -10,9 +10,9 @@ export default function Home() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="font-display text-xs font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">IssueLab x SecondMe</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">ѧ����·̽��̨</h1>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">学术道路探索台</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-muted)] md:text-base">
-                ��ͬһ���Ⲣ��������������·����ѹ��̽��ʱ�䣬�����ִ�н��ۡ�
+                以同一问题并行驱动三条推演路径，压缩探索时间，输出可执行结论。
               </p>
             </div>
             <p className="inline-flex items-center rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[#d7f0ff]">
@@ -32,9 +32,9 @@ export default function Home() {
             </div>
 
             <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-2)] p-4 text-sm leading-6 text-[var(--text-muted)] shadow-[var(--shadow-soft)] backdrop-blur-xl">
-              <p className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">ʹ�ý���</p>
-              <p className="mt-2">��������ȷ���⣬�ٲ鿴��·�����ۡ����պ��ж����顣</p>
-              <p className="mt-2">������ֺ󣬼���׷�ʹؼ����磬ֱ����������ִ�о��ߡ�</p>
+              <p className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">使用节奏</p>
+              <p className="mt-2">先输入明确问题，再查看三路径结论、风险和行动建议。</p>
+              <p className="mt-2">结果出现后，继续追问关键分歧，直到收敛到可执行决策。</p>
             </div>
           </aside>
 

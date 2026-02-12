@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
-import { IBM_Plex_Sans_SC, Space_Grotesk } from "next/font/google";
+ï»¿import type { Metadata } from "next";
+import { Noto_Sans_SC, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
-const bodyFont = IBM_Plex_Sans_SC({
+const bodyFont = Noto_Sans_SC({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-body",
@@ -16,17 +16,17 @@ const displayFont = Space_Grotesk({
 
 export const metadata: Metadata = {
   title: "IssueLab x SecondMe",
-  description: "IssueLab µÄ SecondMe ¹ì¼£ÌÖÂÛÊµÑéÌ¨",
+  description: "IssueLab çš„ SecondMe è½¨è¿¹è®¨è®ºå®éªŒå°",
   openGraph: {
     title: "IssueLab x SecondMe",
-    description: "IssueLab µÄ SecondMe ¹ì¼£ÌÖÂÛÊµÑéÌ¨",
+    description: "IssueLab çš„ SecondMe è½¨è¿¹è®¨è®ºå®éªŒå°",
     type: "website",
     locale: "zh_CN",
   },
   twitter: {
     card: "summary",
     title: "IssueLab x SecondMe",
-    description: "IssueLab µÄ SecondMe ¹ì¼£ÌÖÂÛÊµÑéÌ¨",
+    description: "IssueLab çš„ SecondMe è½¨è¿¹è®¨è®ºå®éªŒå°",
   },
 };
 
