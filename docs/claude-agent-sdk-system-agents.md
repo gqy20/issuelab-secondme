@@ -73,3 +73,22 @@
 1. 将系统智能体输出写入 Prisma（`Run/PathRun/Artifact/Evaluation`）
 2. 增加前端“路径对比视图”（不止显示一句 hypothesis）
 3. 增加回放页面：按会话查看历史路径建议与评估变化
+
+## 9. 数据库迁移说明
+
+本项目代码已使用以下模型落库：
+
+- `Task`
+- `Run`
+- `PathRun`
+- `Turn`
+- `PathReport`
+- `Artifact`
+- `Evaluation`
+
+部署前请确保已执行 Prisma 迁移并生成客户端：
+
+```bash
+npx prisma migrate deploy
+npx prisma generate
+```

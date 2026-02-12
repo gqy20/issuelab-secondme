@@ -21,6 +21,14 @@ function shouldRunSystemAgents() {
   return process.env.SYSTEM_AGENT_ENABLED?.trim() !== "false";
 }
 
+function stringifyJson(value: unknown) {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "{}";
+  }
+}
+
 export async function POST(request: Request) {
   const { accessToken, userId } = getSessionFromRequest(request);
   if (!accessToken || !userId) {
@@ -146,8 +154,46 @@ export async function POST(request: Request) {
         if (shouldRunSystemAgents()) {
           const paths: PathType[] = ["radical", "conservative", "cross_domain"];
           const reports: Partial<Record<PathType, JsonRecord>> = {};
+          const pathRunIdMap: Partial<Record<PathType, string>> = {};
+          let runId: string | null = null;
 
           controller.enqueue(emit("path_status", { status: "running" }));
+
+          try {
+            const task = await prisma.task.create({
+              data: {
+                userId: user.id,
+                title: message.slice(0, 48),
+                input: message,
+              },
+              select: { id: true },
+            });
+
+            const run = await prisma.run.create({
+              data: {
+                taskId: task.id,
+                status: "running",
+              },
+              select: { id: true },
+            });
+            runId = run.id;
+
+            await Promise.all(
+              paths.map(async (path) => {
+                const pathRun = await prisma.pathRun.create({
+                  data: {
+                    runId: run.id,
+                    path,
+                    status: "running",
+                  },
+                  select: { id: true },
+                });
+                pathRunIdMap[path] = pathRun.id;
+              }),
+            );
+          } catch {
+            // Persistence errors should not break the chat flow.
+          }
 
           await Promise.all(
             paths.map(async (path) => {
@@ -161,6 +207,34 @@ export async function POST(request: Request) {
                 reports[path] = report;
                 controller.enqueue(emit("path_report", { path, report }));
                 controller.enqueue(emit("path_status", { path, status: "done" }));
+
+                const pathRunId = pathRunIdMap[path];
+                if (pathRunId) {
+                  try {
+                    await prisma.$transaction([
+                      prisma.turn.create({
+                        data: {
+                          pathRunId,
+                          round: 1,
+                          role: "assistant",
+                          content: report.hypothesis ?? "",
+                          jsonOutput: stringifyJson(report),
+                        },
+                      }),
+                      prisma.pathReport.upsert({
+                        where: { pathRunId },
+                        update: { content: stringifyJson(report) },
+                        create: { pathRunId, content: stringifyJson(report) },
+                      }),
+                      prisma.pathRun.update({
+                        where: { id: pathRunId },
+                        data: { status: "done" },
+                      }),
+                    ]);
+                  } catch {
+                    // Persistence failure should not fail an already generated report.
+                  }
+                }
               } catch (error) {
                 systemAgentFailed = true;
                 controller.enqueue(
@@ -171,6 +245,29 @@ export async function POST(request: Request) {
                   }),
                 );
                 controller.enqueue(emit("path_status", { path, status: "failed" }));
+
+                const pathRunId = pathRunIdMap[path];
+                if (pathRunId) {
+                  try {
+                    await prisma.$transaction([
+                      prisma.turn.create({
+                        data: {
+                          pathRunId,
+                          round: 1,
+                          role: "system",
+                          content:
+                            error instanceof Error ? error.message : "系统路径智能体调用失败",
+                        },
+                      }),
+                      prisma.pathRun.update({
+                        where: { id: pathRunId },
+                        data: { status: "failed" },
+                      }),
+                    ]);
+                  } catch {
+                    // Ignore persistence failure.
+                  }
+                }
               }
             }),
           );
@@ -195,6 +292,29 @@ export async function POST(request: Request) {
                 synthesis,
               });
               controller.enqueue(emit("evaluation", evaluation));
+
+              if (runId) {
+                try {
+                  await prisma.$transaction([
+                    prisma.artifact.upsert({
+                      where: { runId },
+                      update: { content: stringifyJson(synthesis) },
+                      create: { runId, content: stringifyJson(synthesis) },
+                    }),
+                    prisma.evaluation.upsert({
+                      where: { runId },
+                      update: { content: stringifyJson(evaluation) },
+                      create: { runId, content: stringifyJson(evaluation) },
+                    }),
+                    prisma.run.update({
+                      where: { id: runId },
+                      data: { status: "done" },
+                    }),
+                  ]);
+                } catch {
+                  // Ignore persistence failure.
+                }
+              }
             } catch (error) {
               systemAgentFailed = true;
               controller.enqueue(
@@ -203,8 +323,28 @@ export async function POST(request: Request) {
                     error instanceof Error
                       ? error.message
                       : "系统智能体综合/评估阶段失败",
-                }),
+                  }),
               );
+            }
+          } else if (runId) {
+            try {
+              await prisma.run.update({
+                where: { id: runId },
+                data: { status: "failed" },
+              });
+            } catch {
+              // Ignore persistence failure.
+            }
+          }
+
+          if (runId && systemAgentFailed) {
+            try {
+              await prisma.run.update({
+                where: { id: runId },
+                data: { status: "failed" },
+              });
+            } catch {
+              // Ignore persistence failure.
             }
           }
 
