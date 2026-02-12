@@ -5,6 +5,7 @@ import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 type ChatItem = { role: "user" | "assistant"; content: string };
 type SseEvent = { event: string; data: string };
 type PathKey = "radical" | "conservative" | "cross_domain";
+type StatusValue = "idle" | "running" | "done" | "failed" | "partial_failed";
 
 type PathReport = {
   path: PathKey;
@@ -50,6 +51,18 @@ const PATH_LABELS: Record<PathKey, string> = {
   cross_domain: "跨域路径",
 };
 
+const DEFAULT_ASSISTANT_TEXT = "欢迎进入多路径博弈模式，输入你的问题开始分析。";
+const RUNNING_ASSISTANT_TEXT = "正在进行多轮博弈，请稍候...";
+const REQUEST_FAILED_TEXT = "请求失败，请稍后重试。";
+const EXEC_FAILED_TEXT = "执行失败，请重试。";
+const NETWORK_FAILED_TEXT = "网络异常，请稍后重试。";
+const MAX_ROUND_LOGS = 120;
+
+function pushCapped<T>(list: T[], item: T, max = MAX_ROUND_LOGS): T[] {
+  if (list.length < max) return [...list, item];
+  return [...list.slice(list.length - max + 1), item];
+}
+
 function parseSseBlock(block: string): SseEvent | null {
   const lines = block.split(/\r?\n/);
   let event = "message";
@@ -68,15 +81,20 @@ export function ChatWindow() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
-  const [pathStatus, setPathStatus] = useState("idle");
-  const [debateStatus, setDebateStatus] = useState("idle");
+  const [pathStatus, setPathStatus] = useState<StatusValue>("idle");
+  const [perPathStatus, setPerPathStatus] = useState<Record<PathKey, StatusValue>>({
+    radical: "idle",
+    conservative: "idle",
+    cross_domain: "idle",
+  });
+  const [debateStatus, setDebateStatus] = useState<StatusValue>("idle");
   const [pathReports, setPathReports] = useState<Partial<Record<PathKey, PathReport>>>({});
   const [synthesis, setSynthesis] = useState<Synthesis | null>(null);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [debateRounds, setDebateRounds] = useState<DebateRoundItem[]>([]);
   const [judgeRounds, setJudgeRounds] = useState<JudgeRoundItem[]>([]);
   const [messages, setMessages] = useState<ChatItem[]>([
-    { role: "assistant", content: "欢迎进入轨迹讨论区，输入问题开始。" },
+    { role: "assistant", content: DEFAULT_ASSISTANT_TEXT },
   ]);
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -104,6 +122,21 @@ export function ChatWindow() {
     });
   };
 
+  const resetDebateState = () => {
+    setPathStatus("running");
+    setPerPathStatus({
+      radical: "running",
+      conservative: "running",
+      cross_domain: "running",
+    });
+    setDebateStatus("idle");
+    setPathReports({});
+    setSynthesis(null);
+    setEvaluation(null);
+    setDebateRounds([]);
+    setJudgeRounds([]);
+  };
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (sending) return;
@@ -113,14 +146,12 @@ export function ChatWindow() {
 
     setInput("");
     setSending(true);
-    setPathStatus("running");
-    setDebateStatus("idle");
-    setPathReports({});
-    setSynthesis(null);
-    setEvaluation(null);
-    setDebateRounds([]);
-    setJudgeRounds([]);
-    setMessages((prev) => [...prev, { role: "user", content: message }, { role: "assistant", content: "正在进行多轮博弈..." }]);
+    resetDebateState();
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: message },
+      { role: "assistant", content: RUNNING_ASSISTANT_TEXT },
+    ]);
 
     try {
       const response = await fetch("/api/chat", {
@@ -132,7 +163,7 @@ export function ChatWindow() {
       if (!response.ok || !response.body) {
         const payload = await response.json().catch(() => ({}));
         replaceLastAssistant(
-          typeof payload?.message === "string" ? payload.message : "请求失败，请稍后重试。",
+          typeof payload?.message === "string" ? payload.message : REQUEST_FAILED_TEXT,
         );
         return;
       }
@@ -161,20 +192,33 @@ export function ChatWindow() {
               continue;
             }
 
-            if (parsed.event === "path_status" && typeof payload.status === "string") {
-              setPathStatus(payload.status);
+            if (parsed.event === "path_status") {
+              if (
+                typeof payload.path === "string" &&
+                PATH_KEYS.includes(payload.path as PathKey) &&
+                typeof payload.status === "string"
+              ) {
+                setPerPathStatus((prev) => ({
+                  ...prev,
+                  [payload.path as PathKey]: payload.status as StatusValue,
+                }));
+                continue;
+              }
+              if (typeof payload.status === "string") {
+                setPathStatus(payload.status as StatusValue);
+              }
               continue;
             }
 
             if (parsed.event === "debate_status" && typeof payload.status === "string") {
-              setDebateStatus(payload.status);
+              setDebateStatus(payload.status as StatusValue);
               continue;
             }
 
             if (parsed.event === "debate_round") {
               const item = payload as unknown as DebateRoundItem;
               if (item.path && typeof item.round === "number") {
-                setDebateRounds((prev) => [...prev, item]);
+                setDebateRounds((prev) => pushCapped(prev, item));
               }
               continue;
             }
@@ -182,7 +226,7 @@ export function ChatWindow() {
             if (parsed.event === "judge_round") {
               const item = payload as unknown as JudgeRoundItem;
               if (item.path && typeof item.round === "number") {
-                setJudgeRounds((prev) => [...prev, item]);
+                setJudgeRounds((prev) => pushCapped(prev, item));
               }
               continue;
             }
@@ -190,9 +234,10 @@ export function ChatWindow() {
             if (parsed.event === "path_report") {
               const item = payload as unknown as { path?: PathKey; report?: PathReport; error?: string };
               if (item.path) {
+                const path = item.path as PathKey;
                 setPathReports((prev) => ({
                   ...prev,
-                  [item.path as PathKey]: item.report ?? { path: item.path as PathKey, error: item.error },
+                  [path]: item.report ?? { path, error: item.error },
                 }));
               }
               continue;
@@ -214,7 +259,9 @@ export function ChatWindow() {
             }
 
             if (parsed.event === "error") {
-              replaceLastAssistant(typeof payload.message === "string" ? payload.message : "执行失败，请重试。");
+              replaceLastAssistant(
+                typeof payload.message === "string" ? payload.message : EXEC_FAILED_TEXT,
+              );
               continue;
             }
 
@@ -222,12 +269,12 @@ export function ChatWindow() {
               appendToLastAssistant(payload.text);
             }
           } catch {
-            // ignore malformed payload
+            // Ignore malformed payload.
           }
         }
       }
     } catch {
-      replaceLastAssistant("网络异常，请稍后重试。");
+      replaceLastAssistant(NETWORK_FAILED_TEXT);
     } finally {
       setSending(false);
     }
@@ -250,8 +297,17 @@ export function ChatWindow() {
         <div className="space-y-3">
           <div>
             <p className="text-xs text-[var(--text-muted)]">状态</p>
-            <p>路径: {pathStatus}</p>
-            <p>轮次: {debateStatus}</p>
+            <p>全局路径: {pathStatus}</p>
+            <p>轮次执行: {debateStatus}</p>
+          </div>
+
+          <div>
+            <p className="text-xs text-[var(--text-muted)]">路径执行状态</p>
+            {PATH_KEYS.map((path) => (
+              <p key={`status-${path}`} className="text-xs">
+                {PATH_LABELS[path]}: {perPathStatus[path]}
+              </p>
+            ))}
           </div>
 
           <div>
@@ -266,7 +322,9 @@ export function ChatWindow() {
                       ? `失败: ${report.error}`
                       : report?.final_hypothesis || report?.hypothesis || "等待结果..."}
                   </p>
-                  {typeof report?.confidence === "number" ? <p className="text-xs">置信度: {report.confidence}</p> : null}
+                  {typeof report?.confidence === "number" ? (
+                    <p className="text-xs">置信度: {report.confidence}</p>
+                  ) : null}
                 </div>
               );
             })}
@@ -274,8 +332,9 @@ export function ChatWindow() {
 
           {synthesis?.summary ? (
             <div className="rounded border border-[var(--border)] p-2">
-              <p className="text-xs text-[var(--text-muted)]">综合</p>
+              <p className="text-xs text-[var(--text-muted)]">综合结论</p>
               <p>{synthesis.summary}</p>
+              {synthesis.recommendation ? <p className="mt-1 text-xs">建议: {synthesis.recommendation}</p> : null}
             </div>
           ) : null}
 
@@ -292,14 +351,14 @@ export function ChatWindow() {
               {debateRounds.slice(-6).map((item, idx) => (
                 <p key={`d-${item.path}-${item.round}-${idx}`} className="text-xs">
                   R{item.round} {PATH_LABELS[item.path]}:{" "}
-                  {item.error ? `失败-${item.error}` : `${item.coach?.hypothesis ?? "-"} | ${item.secondme ?? "-"}`}
+                  {item.error ? `失败 - ${item.error}` : `${item.coach?.hypothesis ?? "-"} | ${item.secondme ?? "-"}`}
                 </p>
               ))}
               {judgeRounds.slice(-6).map((item, idx) => (
                 <p key={`j-${item.path}-${item.round}-${idx}`} className="text-xs">
                   J{item.round} {PATH_LABELS[item.path]}:{" "}
                   {item.error
-                    ? `失败-${item.error}`
+                    ? `失败 - ${item.error}`
                     : `score=${item.judge?.round_score ?? "-"}, verdict=${item.judge?.verdict ?? "-"}, gap=${item.judge?.critical_gap ?? "-"}`}
                 </p>
               ))}
