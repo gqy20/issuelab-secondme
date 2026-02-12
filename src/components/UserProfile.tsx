@@ -28,9 +28,7 @@ export function UserProfile() {
 
         setNickname(info.data?.nickname ?? "SecondMe 用户");
         setBio(info.data?.bio ?? "暂无简介");
-        setShades(
-          Array.isArray(shadesResult.data?.shades) ? shadesResult.data?.shades ?? [] : [],
-        );
+        setShades(Array.isArray(shadesResult.data?.shades) ? shadesResult.data?.shades ?? [] : []);
       } catch (error) {
         console.error("Load user profile failed", error);
         setError("服务请求失败");
@@ -50,10 +48,10 @@ export function UserProfile() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold tracking-tight">{nickname}</h2>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">{bio}</p>
+        <p className="mt-1 line-clamp-3 text-sm leading-6 text-[var(--text-muted)]">{bio}</p>
       </div>
       <div>
         <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">兴趣标签</p>
@@ -64,7 +62,7 @@ export function UserProfile() {
             shades.map((item) => (
               <span
                 key={item}
-                className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs text-[var(--foreground)]"
+                className="rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs text-[var(--foreground)]"
               >
                 {item}
               </span>
