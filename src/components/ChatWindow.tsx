@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type ChatItem = { role: "user" | "assistant"; content: string };
 type SseEvent = { event: string; data: string };
@@ -40,14 +40,14 @@ type JudgeRoundItem = {
 
 const PATH_KEYS: PathKey[] = ["radical", "conservative", "cross_domain"];
 const PATH_LABELS: Record<PathKey, string> = {
-  radical: "Radical",
-  conservative: "Conservative",
-  cross_domain: "Cross-domain",
+  radical: "激进路径",
+  conservative: "稳健路径",
+  cross_domain: "跨域路径",
 };
 const QUICK_PROMPTS = [
-  "Compare risk differences across the three paths.",
-  "Give me a practical 30-day execution plan.",
-  "Re-rank paths by feasibility only.",
+  "请对比三条路径在风险上的核心差别",
+  "基于当前结果给出 30 天行动计划",
+  "只按可落地性重新排序并说明原因",
 ];
 
 type StageMeta = {
@@ -57,11 +57,11 @@ type StageMeta = {
   tone: "neutral" | "running" | "done" | "warn";
 };
 
-const DEFAULT_ASSISTANT_TEXT = "Welcome to multi-path debate mode. Enter your question to start.";
-const RUNNING_ASSISTANT_TEXT = "Running multi-round debate. Please wait...";
-const REQUEST_FAILED_TEXT = "Request failed. Please retry later.";
-const EXEC_FAILED_TEXT = "Execution failed. Please retry.";
-const NETWORK_FAILED_TEXT = "Network error. Please retry later.";
+const DEFAULT_ASSISTANT_TEXT = "欢迎进入多路径讨论区，输入问题开始探索。";
+const RUNNING_ASSISTANT_TEXT = "正在进行多路径生成与辩论，请稍候...";
+const REQUEST_FAILED_TEXT = "请求失败，请稍后重试。";
+const EXEC_FAILED_TEXT = "执行失败，请重试。";
+const NETWORK_FAILED_TEXT = "网络异常，请稍后重试。";
 const MAX_ROUND_LOGS = 120;
 
 function pushCapped<T>(list: T[], item: T, max = MAX_ROUND_LOGS): T[] {
@@ -86,8 +86,8 @@ function parseSseBlock(block: string): SseEvent | null {
 function statusToStage(status: string, type: "path" | "debate"): StageMeta {
   if (status === "done") {
     return {
-      label: "Done",
-      detail: type === "path" ? "Path outputs are ready" : "Debate rounds are completed",
+      label: "已完成",
+      detail: type === "path" ? "路径结果已产出" : "辩论轮次已结束",
       progress: 100,
       tone: "done",
     };
@@ -95,8 +95,8 @@ function statusToStage(status: string, type: "path" | "debate"): StageMeta {
 
   if (status === "partial_failed" || status === "failed") {
     return {
-      label: "Partially failed",
-      detail: "You can inspect existing output or retry failed paths",
+      label: "部分失败",
+      detail: "可查看已有结果或重试失败路径",
       progress: 75,
       tone: "warn",
     };
@@ -104,16 +104,16 @@ function statusToStage(status: string, type: "path" | "debate"): StageMeta {
 
   if (status === "running") {
     return {
-      label: "Running",
-      detail: type === "path" ? "Generating path hypotheses" : "Cross-validating path viewpoints",
+      label: "进行中",
+      detail: type === "path" ? "正在生成多路径观点" : "正在交叉辩论与校验",
       progress: 50,
       tone: "running",
     };
   }
 
   return {
-    label: "Idle",
-    detail: type === "path" ? "Will start after submission" : "Will start after path stage",
+    label: "待开始",
+    detail: type === "path" ? "提问后自动开始" : "路径阶段完成后开始",
     progress: 10,
     tone: "neutral",
   };
@@ -151,12 +151,11 @@ export function ChatWindow() {
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [debateRounds, setDebateRounds] = useState<DebateRoundItem[]>([]);
   const [judgeRounds, setJudgeRounds] = useState<JudgeRoundItem[]>([]);
-  const [messages, setMessages] = useState<ChatItem[]>([
-    { role: "assistant", content: DEFAULT_ASSISTANT_TEXT },
-  ]);
+  const [messages, setMessages] = useState<ChatItem[]>([{ role: "assistant", content: DEFAULT_ASSISTANT_TEXT }]);
 
   const formRef = useRef<HTMLFormElement>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   const appendToLastAssistant = (delta: string) => {
     setMessages((prev) => {
@@ -182,11 +181,7 @@ export function ChatWindow() {
 
   const resetDebateState = () => {
     setPathStatus("running");
-    setPerPathStatus({
-      radical: "running",
-      conservative: "running",
-      cross_domain: "running",
-    });
+    setPerPathStatus({ radical: "running", conservative: "running", cross_domain: "running" });
     setDebateStatus("idle");
     setPathReports({});
     setSynthesis(null);
@@ -248,10 +243,7 @@ export function ChatWindow() {
                 PATH_KEYS.includes(payload.path as PathKey) &&
                 typeof payload.status === "string"
               ) {
-                setPerPathStatus((prev) => ({
-                  ...prev,
-                  [payload.path as PathKey]: payload.status as StatusValue,
-                }));
+                setPerPathStatus((prev) => ({ ...prev, [payload.path as PathKey]: payload.status as StatusValue }));
                 continue;
               }
               if (typeof payload.status === "string") {
@@ -285,10 +277,7 @@ export function ChatWindow() {
               const item = payload as unknown as { path?: PathKey; report?: PathReport; error?: string };
               if (item.path) {
                 const path = item.path as PathKey;
-                setPathReports((prev) => ({
-                  ...prev,
-                  [path]: item.report ?? { path, error: item.error },
-                }));
+                setPathReports((prev) => ({ ...prev, [path]: item.report ?? { path, error: item.error } }));
               }
               continue;
             }
@@ -350,81 +339,106 @@ export function ChatWindow() {
   const latestDebateByPath = pickLatestByPath(debateRounds);
   const latestJudgeByPath = pickLatestByPath(judgeRounds);
   const failedPaths = PATH_KEYS.filter((path) => Boolean(pathReports[path]?.error));
-  const pathSummaries = PATH_KEYS.map((path) => {
-    const report = pathReports[path];
-    const summary = report?.final_hypothesis || report?.hypothesis;
-    if (report?.error) return { path, text: `Failed: ${report.error}` };
-    if (summary) return { path, text: summary };
-    return { path, text: "No result yet" };
-  });
+
+  const pathSummaries = useMemo(
+    () =>
+      PATH_KEYS.map((path) => {
+        const report = pathReports[path];
+        const summary = report?.final_hypothesis || report?.hypothesis;
+        if (report?.error) return { path, text: `失败：${report.error}` };
+        if (summary) return { path, text: summary };
+        return { path, text: "暂无结果" };
+      }),
+    [pathReports],
+  );
+
+  const hasPathOutput = useMemo(
+    () => pathSummaries.some((item) => item.text !== "暂无结果"),
+    [pathSummaries],
+  );
 
   const applyQuickPrompt = (prompt: string) => {
     if (sending) return;
     setInput(prompt);
+    textAreaRef.current?.focus();
   };
 
   const retryFailedPaths = async () => {
     if (sending || failedPaths.length === 0) return;
-    const target = failedPaths.map((path) => PATH_LABELS[path]).join(", ");
-    await submitMessage(`Retry only failed paths: ${target}. Keep successful paths unchanged.`);
+    const target = failedPaths.map((path) => PATH_LABELS[path]).join("、");
+    await submitMessage(`请仅重试失败路径：${target}。其余路径沿用已有结果。`);
   };
 
   const regenerateComparison = async () => {
     if (sending) return;
-    await submitMessage("Regenerate a 3-path comparison for conclusion, risk, and action with ranking.");
+    await submitMessage("请基于当前会话重新输出三路径差异对比（结论、风险、行动建议）并给出优先级。");
   };
 
   return (
-    <div className="grid h-[72dvh] min-h-[580px] grid-cols-[288px_1fr] gap-3">
+    <div className="grid h-[72dvh] min-h-[580px] grid-cols-[280px_1fr] gap-3">
       <aside className="overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3 text-sm">
         <div className="space-y-3">
           <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
-            <p className="text-xs font-medium text-[var(--text-muted)]">Progress overview</p>
+            <p className="text-xs font-medium text-[var(--text-muted)]">流程总览</p>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
               <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${overallProgress}%` }} />
             </div>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">{`Current progress ${overallProgress}%`}</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">{`当前进度 ${overallProgress}%`}</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(pathStage.tone)}`}>Path: {pathStage.label}</span>
-              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(debateStage.tone)}`}>Debate: {debateStage.label}</span>
+              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(pathStage.tone)}`}>路径：{pathStage.label}</span>
+              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(debateStage.tone)}`}>辩论：{debateStage.label}</span>
             </div>
             <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">{pathStage.detail}</p>
             <p className="text-xs leading-5 text-[var(--text-muted)]">{debateStage.detail}</p>
           </div>
 
-          <div>
-            <p className="text-xs text-[var(--text-muted)]">Path runtime status</p>
-            {PATH_KEYS.map((path) => (
-              <p key={`status-${path}`} className="text-xs">{PATH_LABELS[path]}: {perPathStatus[path]}</p>
-            ))}
+          <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">路径状态</p>
+            <div className="mt-2 space-y-1">
+              {PATH_KEYS.map((path) => (
+                <p key={`status-${path}`} className="text-xs">{PATH_LABELS[path]}: {perPathStatus[path]}</p>
+              ))}
+            </div>
           </div>
 
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Path summary</p>
-            {PATH_KEYS.map((path) => {
-              const report = pathReports[path];
-              const summary = report?.final_hypothesis || report?.hypothesis;
-              return (
-                <div key={path} className="mt-2 rounded-md border border-[var(--border)] bg-white p-2.5">
-                  <p className="text-xs font-medium text-[var(--text-muted)]">{PATH_LABELS[path]}</p>
-                  <p className="mt-1 line-clamp-2 text-sm">{report?.error ? `Failed: ${report.error}` : summary || "Waiting for result..."}</p>
-                  {typeof report?.confidence === "number" ? <p className="mt-1 text-xs text-[var(--text-muted)]">{`Confidence ${report.confidence}`}</p> : null}
-                </div>
-              );
-            })}
-          </div>
+          {hasPathOutput ? (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">路径摘要</p>
+              {PATH_KEYS.map((path) => {
+                const report = pathReports[path];
+                const summary = report?.final_hypothesis || report?.hypothesis;
+                return (
+                  <div key={path} className="mt-2 rounded-md border border-[var(--border)] bg-white p-2.5">
+                    <p className="text-xs font-medium text-[var(--text-muted)]">{PATH_LABELS[path]}</p>
+                    <p className="mt-1 line-clamp-2 text-sm">
+                      {report?.error ? `失败：${report.error}` : summary || "等待结果..."}
+                    </p>
+                    {typeof report?.confidence === "number" ? (
+                      <p className="mt-1 text-xs text-[var(--text-muted)]">{`置信度 ${report.confidence}`}</p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-md border border-dashed border-[var(--border)] bg-white p-3 text-xs leading-5 text-[var(--text-muted)]">
+              首次提问后，这里会展示每条路径的阶段状态和摘要。
+            </div>
+          )}
 
           {synthesis?.summary ? (
             <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Synthesis</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">综合结论</p>
               <p className="mt-1 text-sm leading-6">{synthesis.summary}</p>
-              {synthesis.recommendation ? <p className="mt-1 text-xs text-[var(--text-muted)]">Recommendation: {synthesis.recommendation}</p> : null}
+              {synthesis.recommendation ? (
+                <p className="mt-1 text-xs text-[var(--text-muted)]">建议：{synthesis.recommendation}</p>
+              ) : null}
             </div>
           ) : null}
 
           {typeof evaluation?.score === "number" ? (
             <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Evaluation score</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">评估分</p>
               <p className="mt-1 text-sm">{evaluation.score}</p>
             </div>
           ) : null}
@@ -434,16 +448,19 @@ export function ChatWindow() {
       <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
         <div className="border-b border-[var(--border)] bg-white px-3 py-2.5">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold tracking-tight">Trajectory chat</h2>
+            <div>
+              <h2 className="text-sm font-semibold tracking-tight">轨迹对话</h2>
+              <p className="text-xs text-[var(--text-muted)]">先提问，再对比三条路径的结论与风险差异。</p>
+            </div>
             <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs text-[var(--text-muted)]">
-              {sessionId ? `Session ${sessionId.slice(0, 8)}...` : "New session"}
+              {sessionId ? `会话 ${sessionId.slice(0, 8)}...` : "新会话"}
             </span>
           </div>
         </div>
 
         <div className="border-b border-[var(--border)] bg-white px-3 py-2.5">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Path difference matrix</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">路径差异矩阵</p>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -451,7 +468,7 @@ export function ChatWindow() {
                 disabled={sending || failedPaths.length === 0}
                 className="rounded-md border border-[var(--danger)] bg-[var(--danger-soft)] px-2.5 py-1 text-xs font-medium text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Retry failed paths
+                重试失败路径
               </button>
               <button
                 type="button"
@@ -459,54 +476,62 @@ export function ChatWindow() {
                 disabled={sending}
                 className="rounded-md border border-[var(--accent)] bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Regenerate comparison
+                重新生成对比
               </button>
             </div>
           </div>
 
-          <div className="mt-2 overflow-hidden rounded-md border border-[var(--border)]">
-            <div className="grid grid-cols-[120px_1fr_1fr_1fr] bg-[var(--surface-2)] text-xs font-medium text-[var(--text-muted)]">
-              <div className="border-r border-[var(--border)] px-2 py-1.5">Dimension</div>
-              {PATH_KEYS.map((path) => (
-                <div key={`head-${path}`} className="border-r border-[var(--border)] px-2 py-1.5 last:border-r-0">{PATH_LABELS[path]}</div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">Conclusion</div>
-              {pathSummaries.map((item) => (
-                <div key={`summary-${item.path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
-                  <p className="line-clamp-2">{item.text}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">Risk</div>
-              {PATH_KEYS.map((path) => {
-                const judgeGap = latestJudgeByPath[path]?.judge?.critical_gap;
-                const err = pathReports[path]?.error;
-                const text = err ? `Failed: ${err}` : judgeGap || "No explicit risk delta";
-                return (
-                  <div key={`risk-${path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
-                    <p className="line-clamp-2">{text}</p>
+          {hasPathOutput ? (
+            <div className="mt-2 overflow-hidden rounded-md border border-[var(--border)]">
+              <div className="grid grid-cols-[120px_1fr_1fr_1fr] bg-[var(--surface-2)] text-xs font-medium text-[var(--text-muted)]">
+                <div className="border-r border-[var(--border)] px-2 py-1.5">维度</div>
+                {PATH_KEYS.map((path) => (
+                  <div key={`head-${path}`} className="border-r border-[var(--border)] px-2 py-1.5 last:border-r-0">
+                    {PATH_LABELS[path]}
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
 
-            <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">Action</div>
-              {PATH_KEYS.map((path) => {
-                const action = latestJudgeByPath[path]?.judge?.next_constraint || latestDebateByPath[path]?.coach?.hypothesis;
-                return (
-                  <div key={`action-${path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
-                    <p className="line-clamp-2">{action || "No action recommendation"}</p>
+              <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
+                <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">结论差异</div>
+                {pathSummaries.map((item) => (
+                  <div key={`summary-${item.path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
+                    <p className="line-clamp-2">{item.text}</p>
                   </div>
-                );
-              })}
+                ))}
+              </div>
+
+              <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
+                <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">风险差异</div>
+                {PATH_KEYS.map((path) => {
+                  const judgeGap = latestJudgeByPath[path]?.judge?.critical_gap;
+                  const err = pathReports[path]?.error;
+                  const text = err ? `失败：${err}` : judgeGap || "暂无显式风险差异";
+                  return (
+                    <div key={`risk-${path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
+                      <p className="line-clamp-2">{text}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
+                <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">行动建议</div>
+                {PATH_KEYS.map((path) => {
+                  const action = latestJudgeByPath[path]?.judge?.next_constraint || latestDebateByPath[path]?.coach?.hypothesis;
+                  return (
+                    <div key={`action-${path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
+                      <p className="line-clamp-2">{action || "暂无行动建议"}</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="mt-2 rounded-md border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text-muted)]">
+              还没有可对比内容。请先发送一个问题，系统会生成三路径差异矩阵。
+            </div>
+          )}
         </div>
 
         <div ref={messageListRef} className="flex-1 space-y-3 overflow-y-auto bg-[var(--surface-2)] p-3">
@@ -515,7 +540,7 @@ export function ChatWindow() {
               key={`${item.role}-${idx}`}
               className={`max-w-[80%] rounded-lg px-3 py-2 text-sm leading-6 ${
                 item.role === "user"
-                  ? "ml-auto bg-[#0f172a] text-white"
+                  ? "ml-auto bg-[var(--accent-strong)] text-white"
                   : "border border-[var(--border)] bg-white text-[var(--foreground)]"
               }`}
             >
@@ -541,21 +566,22 @@ export function ChatWindow() {
 
           {failedPaths.length > 0 ? (
             <p className="mb-2 text-xs text-[var(--danger)]">
-              {`Detected ${failedPaths.length} failed path(s). Use \"Retry failed paths\" to recover quickly.`}
+              {`检测到 ${failedPaths.length} 条失败路径，可点击“重试失败路径”快速恢复。`}
             </p>
           ) : null}
 
           <div className="flex gap-2">
-            <label htmlFor="chat-input" className="sr-only">Input message</label>
+            <label htmlFor="chat-input" className="sr-only">输入消息</label>
             <textarea
+              ref={textAreaRef}
               id="chat-input"
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={onInputKeyDown}
               disabled={sending}
               rows={2}
-              aria-label="Chat input"
-              placeholder="Example: If I switch to a cross-disciplinary path, what capability gap matters most in 3 years?"
+              aria-label="聊天输入框"
+              placeholder="例如：如果我走跨学科方向，三年后最关键的能力差异是什么？"
               className="flex-1 resize-none rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
             />
             <button
@@ -564,14 +590,14 @@ export function ChatWindow() {
               aria-busy={sending}
               className="rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-sm font-medium text-white transition-all hover:-translate-y-px hover:shadow-[0_6px_14px_rgba(0,102,204,0.24)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
             >
-              {sending ? "Generating..." : "Send"}
+              {sending ? "生成中..." : "发送"}
             </button>
           </div>
 
-          <p className="mt-2 text-xs text-[var(--text-muted)]">Press Enter to send, Shift + Enter for newline</p>
+          <p className="mt-2 text-xs text-[var(--text-muted)]">按 Enter 发送，Shift + Enter 换行</p>
           {(debateRounds.length > 0 || judgeRounds.length > 0) && (
             <p className="mt-1 text-xs text-[var(--text-muted)]">
-              {`Collected debate ${debateRounds.length} entries, judge ${judgeRounds.length} entries`}
+              {`已收集辩论 ${debateRounds.length} 条，裁判 ${judgeRounds.length} 条`}
             </p>
           )}
         </form>
