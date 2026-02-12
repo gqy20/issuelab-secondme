@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/auth";
 import { secondMeRequest, readJsonSafe } from "@/lib/secondme";
 
@@ -20,4 +20,3 @@ export async function GET(request: Request) {
   }
   return NextResponse.json(payload ?? { code: 0, data: { shades: [] } });
 }
-

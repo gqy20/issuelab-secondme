@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -28,4 +28,3 @@ export async function GET(request: Request) {
     data: { sessions: user?.chatSessions ?? [] },
   });
 }
-

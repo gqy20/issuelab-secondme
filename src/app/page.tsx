@@ -12,7 +12,7 @@ export default function Home() {
             学术道路探索台
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-            在同一议题下并行调用多个 SecondMe 轨迹分身，比较观点差异，记录讨论过程，并沉淀为可追溯笔记。
+            在同一问题下并行调用多个 SecondMe 轨迹分身，对比观点差异，记录讨论过程，并沉淀为可追溯笔记。
           </p>
           <div className="mt-5">
             <LoginButton />
@@ -31,4 +31,3 @@ export default function Home() {
     </div>
   );
 }
-
