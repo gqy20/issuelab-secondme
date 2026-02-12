@@ -50,7 +50,8 @@ export function UserProfile() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold tracking-tight">{nickname}</h2>
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">SecondMe 用户</p>
+        <h2 className="mt-1 text-lg font-semibold tracking-tight">{nickname}</h2>
         <p className="mt-1 line-clamp-3 text-sm leading-6 text-[var(--text-muted)]">{bio}</p>
       </div>
       <div>
@@ -62,7 +63,7 @@ export function UserProfile() {
             shades.map((item) => (
               <span
                 key={item}
-                className="rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs text-[var(--foreground)]"
+                className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs text-[var(--foreground)]"
               >
                 {item}
               </span>

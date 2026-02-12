@@ -133,6 +133,14 @@ function badgeClass(tone: StageMeta["tone"]) {
   return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
+function pathBadgeClass(path: PathKey) {
+  if (path === "radical") return "border-[var(--path-radical)] bg-[var(--path-radical-soft)] text-[var(--path-radical)]";
+  if (path === "conservative") {
+    return "border-[var(--path-conservative)] bg-[var(--path-conservative-soft)] text-[var(--path-conservative)]";
+  }
+  return "border-[var(--path-cross)] bg-[var(--path-cross-soft)] text-[var(--path-cross)]";
+}
+
 function pickLatestByPath<T extends { path: PathKey }>(items: T[]) {
   const latest: Partial<Record<PathKey, T>> = {};
   for (let i = items.length - 1; i >= 0; i -= 1) {
@@ -383,10 +391,10 @@ export function ChatWindow() {
   };
 
   return (
-    <div className="grid h-[72dvh] min-h-[580px] grid-cols-[280px_1fr] gap-3">
-      <aside className="overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3 text-sm">
+    <div className="grid h-[74dvh] min-h-[620px] grid-cols-1 gap-3 lg:grid-cols-[300px_1fr]">
+      <aside className="overflow-y-auto rounded-xl border border-[var(--border)] bg-[linear-gradient(180deg,#fbfdff_0%,#f7faff_100%)] p-3 text-sm">
         <div className="space-y-3">
-          <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
+          <div className="rounded-lg border border-[var(--border)] bg-white p-2.5 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
             <p className="text-xs font-medium text-[var(--text-muted)]">流程总览</p>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
               <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${overallProgress}%` }} />
@@ -400,16 +408,16 @@ export function ChatWindow() {
             <p className="text-xs leading-5 text-[var(--text-muted)]">{debateStage.detail}</p>
           </div>
 
-          <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
+          <div className="rounded-lg border border-[var(--border)] bg-white p-2.5 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">路径状态</p>
             {isAllPathIdle ? (
               <p className="mt-2 text-xs text-[var(--text-muted)]">发送首条问题后开始运行</p>
             ) : (
-              <div className="mt-2 space-y-1">
+              <div className="mt-2 space-y-2">
                 {PATH_KEYS.map((path) => (
-                  <p key={`status-${path}`} className="text-xs">
+                  <span key={`status-${path}`} className={`inline-flex rounded-full border px-2 py-1 text-xs ${pathBadgeClass(path)}`}>
                     {PATH_LABELS[path]}：{STATUS_LABELS[perPathStatus[path]]}
-                  </p>
+                  </span>
                 ))}
               </div>
             )}
@@ -422,9 +430,9 @@ export function ChatWindow() {
                 const report = pathReports[path];
                 const summary = report?.final_hypothesis || report?.hypothesis;
                 return (
-                  <div key={path} className="mt-2 rounded-md border border-[var(--border)] bg-white p-2.5">
+                  <div key={path} className={`mt-2 rounded-lg border bg-white p-2.5 shadow-[0_4px_12px_rgba(15,23,42,0.04)] ${pathBadgeClass(path)}`}>
                     <p className="text-xs font-medium text-[var(--text-muted)]">{PATH_LABELS[path]}</p>
-                    <p className="mt-1 line-clamp-2 text-sm">
+                    <p className="mt-1 line-clamp-2 text-sm text-[var(--foreground)]">
                       {report?.error ? `失败：${report.error}` : summary || "等待结果..."}
                     </p>
                     {typeof report?.confidence === "number" ? (
@@ -435,13 +443,13 @@ export function ChatWindow() {
               })}
             </div>
           ) : (
-            <div className="rounded-md border border-dashed border-[var(--border)] bg-white p-3 text-xs leading-5 text-[var(--text-muted)]">
+            <div className="rounded-lg border border-dashed border-[var(--border)] bg-white p-3 text-xs leading-5 text-[var(--text-muted)]">
               首次提问后，这里会展示每条路径的阶段状态和摘要。
             </div>
           )}
 
           {synthesis?.summary ? (
-            <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
+            <div className="rounded-lg border border-[var(--border)] bg-white p-2.5 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">综合结论</p>
               <p className="mt-1 text-sm leading-6">{synthesis.summary}</p>
               {synthesis.recommendation ? (
@@ -451,7 +459,7 @@ export function ChatWindow() {
           ) : null}
 
           {typeof evaluation?.score === "number" ? (
-            <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
+            <div className="rounded-lg border border-[var(--border)] bg-white p-2.5 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">评估分</p>
               <p className="mt-1 text-sm">{evaluation.score}</p>
             </div>
@@ -459,20 +467,20 @@ export function ChatWindow() {
         </div>
       </aside>
 
-      <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-        <div className="border-b border-[var(--border)] bg-white px-3 py-2.5">
+      <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+        <div className="border-b border-[var(--border)] bg-[linear-gradient(180deg,#ffffff_0%,#f9fbff_100%)] px-3 py-2.5">
           <div className="flex items-center justify-between gap-2">
             <div>
               <h2 className="text-sm font-semibold tracking-tight">轨迹对话</h2>
               <p className="text-xs text-[var(--text-muted)]">先提问，再对比三条路径的结论与风险差异。</p>
             </div>
-            <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs text-[var(--text-muted)]">
+            <span className="rounded-full border border-[var(--border)] bg-white px-2.5 py-1 text-xs text-[var(--text-muted)]">
               {sessionId ? `会话 ${sessionId.slice(0, 8)}...` : "新会话"}
             </span>
           </div>
         </div>
 
-        <div className="border-b border-[var(--border)] bg-white px-3 py-2.5">
+        <div className="border-b border-[var(--border)] bg-[linear-gradient(180deg,#ffffff_0%,#f8faff_100%)] px-3 py-2.5">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">路径差异矩阵</p>
             <div className="flex items-center gap-2">
@@ -480,7 +488,7 @@ export function ChatWindow() {
                 type="button"
                 onClick={retryFailedPaths}
                 disabled={sending || failedPaths.length === 0}
-                className="rounded-md border border-[var(--danger)] bg-[var(--danger-soft)] px-2.5 py-1 text-xs font-medium text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-md border border-[var(--danger)] bg-[var(--danger-soft)] px-2.5 py-1 text-xs font-medium text-[var(--danger)] transition-colors hover:bg-[#ffe7e4] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 重试失败路径
               </button>
@@ -488,7 +496,7 @@ export function ChatWindow() {
                 type="button"
                 onClick={regenerateComparison}
                 disabled={sending}
-                className="rounded-md border border-[var(--accent)] bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-md border border-[var(--accent)] bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--accent-strong)] transition-colors hover:bg-[#d9e8ff] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 重新生成对比
               </button>
@@ -496,11 +504,14 @@ export function ChatWindow() {
           </div>
 
           {hasPathOutput ? (
-            <div className="mt-2 overflow-hidden rounded-md border border-[var(--border)]">
+            <div className="mt-2 overflow-hidden rounded-lg border border-[var(--border)]">
               <div className="grid grid-cols-[120px_1fr_1fr_1fr] bg-[var(--surface-2)] text-xs font-medium text-[var(--text-muted)]">
                 <div className="border-r border-[var(--border)] px-2 py-1.5">维度</div>
                 {PATH_KEYS.map((path) => (
-                  <div key={`head-${path}`} className="border-r border-[var(--border)] px-2 py-1.5 last:border-r-0">
+                  <div
+                    key={`head-${path}`}
+                    className={`border-r border-[var(--border)] px-2 py-1.5 last:border-r-0 ${pathBadgeClass(path)}`}
+                  >
                     {PATH_LABELS[path]}
                   </div>
                 ))}
@@ -542,20 +553,20 @@ export function ChatWindow() {
               </div>
             </div>
           ) : (
-            <div className="mt-2 rounded-md border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text-muted)]">
+            <div className="mt-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text-muted)]">
               还没有可对比内容。请先发送一个问题，系统会生成三路径差异矩阵。
             </div>
           )}
         </div>
 
-        <div ref={messageListRef} className="flex-1 space-y-3 overflow-y-auto bg-[var(--surface-2)] p-3">
+        <div ref={messageListRef} className="flex-1 space-y-3 overflow-y-auto bg-[linear-gradient(180deg,#f9fbff_0%,#f5f8fd_100%)] p-3">
           {messages.map((item, idx) => (
             <div
               key={`${item.role}-${idx}`}
               className={`max-w-[80%] rounded-lg px-3 py-2 text-sm leading-6 ${
                 item.role === "user"
                   ? "ml-auto bg-[var(--accent-strong)] text-white"
-                  : "border border-[var(--border)] bg-white text-[var(--foreground)]"
+                  : "border border-[var(--border)] bg-white text-[var(--foreground)] shadow-[0_4px_10px_rgba(15,23,42,0.04)]"
               }`}
             >
               {item.content || (sending && idx === messages.length - 1 ? "..." : "")}
@@ -571,7 +582,7 @@ export function ChatWindow() {
                 type="button"
                 onClick={() => applyQuickPrompt(prompt)}
                 disabled={sending}
-                className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs font-medium text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs font-medium text-[var(--text-muted)] transition-all hover:-translate-y-px hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
               >
                 {prompt}
               </button>
@@ -596,13 +607,13 @@ export function ChatWindow() {
               rows={2}
               aria-label="聊天输入框"
               placeholder="例如：如果我走跨学科方向，三年后最关键的能力差异是什么？"
-              className="flex-1 resize-none rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
+              className="flex-1 resize-none rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-all focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
             />
             <button
               type="submit"
               disabled={sending}
               aria-busy={sending}
-              className="rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-sm font-medium text-white transition-all hover:-translate-y-px hover:shadow-[0_6px_14px_rgba(0,102,204,0.24)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+              className="rounded-lg bg-[linear-gradient(180deg,var(--accent)_0%,var(--accent-strong)_100%)] px-4 py-2 text-sm font-semibold text-white transition-all hover:-translate-y-px hover:shadow-[0_8px_18px_rgba(13,94,215,0.28)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
             >
               {sending ? "生成中..." : "发送"}
             </button>
