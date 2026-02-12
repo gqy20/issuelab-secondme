@@ -1,11 +1,13 @@
 import type { AgentDefinition, OutputFormat, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { createRequire } from "node:module";
 
 export type JsonRecord = Record<string, unknown>;
 export type PathType = "radical" | "conservative" | "cross_domain";
 
 const DEFAULT_TIMEOUT_MS = 90000;
 const DEFAULT_MAX_TURNS = 6;
+const require = createRequire(import.meta.url);
 
 type CoachOutput = {
   path: PathType;
@@ -51,6 +53,17 @@ function toStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string");
 }
 
+function getClaudeCliPath() {
+  const fromEnv = process.env.CLAUDE_CODE_EXECUTABLE_PATH?.trim();
+  if (fromEnv) return fromEnv;
+
+  try {
+    return require.resolve("@anthropic-ai/claude-agent-sdk/cli.js");
+  } catch {
+    return undefined;
+  }
+}
+
 async function runJsonTask<T extends JsonRecord>(params: {
   agentName: string;
   description: string;
@@ -92,6 +105,7 @@ async function runJsonTask<T extends JsonRecord>(params: {
     const stream = query({
       prompt: userPrompt,
       options: {
+        pathToClaudeCodeExecutable: getClaudeCliPath(),
         abortController,
         model: getModelName(),
         maxTurns: getMaxTurns(),
@@ -131,6 +145,12 @@ async function runJsonTask<T extends JsonRecord>(params: {
     } catch {
       // fall through to final error.
     }
+  }
+
+  if (lastError.includes("Claude Code executable not found")) {
+    throw new Error(
+      `${lastError}. Set CLAUDE_CODE_EXECUTABLE_PATH or ensure @anthropic-ai/claude-agent-sdk is externalized in Next.js build.`,
+    );
   }
 
   throw new Error(lastError || "Claude Agent SDK returned non-JSON result");
