@@ -1,4 +1,4 @@
-import {
+ï»¿import {
   pathBadgeClass,
   PATH_KEYS,
   PATH_LABELS,
@@ -36,7 +36,7 @@ export function PathMatrix({
   return (
     <div className="border-b border-[var(--border)] bg-[linear-gradient(180deg,rgba(18,28,46,0.9)_0%,rgba(15,24,40,0.88)_100%)] px-4 py-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Â·¾¶²îÒì¾ØÕó</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">è·¯å¾„å·®å¼‚çŸ©é˜µ</p>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -44,7 +44,7 @@ export function PathMatrix({
             disabled={sending || failedPaths.length === 0}
             className="rounded-md border border-[var(--danger)] bg-[var(--danger-soft)] px-2.5 py-1 text-xs font-medium text-[var(--danger)] transition-colors hover:bg-[#4b1215] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            ÖØÊÔÊ§°ÜÂ·¾¶
+            é‡è¯•å¤±è´¥è·¯å¾„
           </button>
           <button
             type="button"
@@ -52,7 +52,7 @@ export function PathMatrix({
             disabled={sending}
             className="rounded-md border border-[var(--accent)] bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--accent-strong)] transition-colors hover:bg-[#18344d] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            ÖØĞÂÉú³É¶Ô±È
+            é‡æ–°ç”Ÿæˆå¯¹æ¯”
           </button>
         </div>
       </div>
@@ -60,7 +60,7 @@ export function PathMatrix({
       {hasPathOutput ? (
         <div className="panel-enter mt-2 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--border)] bg-[rgba(10,16,30,0.35)]">
           <div className="grid grid-cols-[120px_1fr_1fr_1fr] bg-[rgba(25,40,64,0.74)] text-xs font-medium text-[var(--text-muted)]">
-            <div className="border-r border-[var(--border)] px-2 py-1.5">Î¬¶È</div>
+            <div className="border-r border-[var(--border)] px-2 py-1.5">ç»´åº¦</div>
             {PATH_KEYS.map((path) => (
               <div key={`head-${path}`} className={`border-r border-[var(--border)] px-2 py-1.5 last:border-r-0 ${pathBadgeClass(path)}`}>
                 {PATH_LABELS[path]}
@@ -69,7 +69,7 @@ export function PathMatrix({
           </div>
 
           <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-            <div className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 font-medium">½áÂÛ²îÒì</div>
+            <div className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 font-medium">ç»“è®ºå·®å¼‚</div>
             {pathSummaries.map((item) => (
               <div key={`summary-${item.path}`} className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 leading-5 last:border-r-0">
                 <p className="line-clamp-2">{item.text}</p>
@@ -78,11 +78,11 @@ export function PathMatrix({
           </div>
 
           <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-            <div className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 font-medium">·çÏÕ²îÒì</div>
+            <div className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 font-medium">é£é™©å·®å¼‚</div>
             {PATH_KEYS.map((path) => {
               const judgeGap = latestJudgeByPath[path]?.judge?.critical_gap;
               const err = pathReports[path]?.error;
-              const text = err ? `Ê§°Ü£º${err}` : judgeGap || "ÔİÎŞÏÔÊ½·çÏÕ²îÒì";
+              const text = err ? `å¤±è´¥ï¼š${err}` : judgeGap || "æš‚æ— æ˜¾å¼é£é™©å·®å¼‚";
               return (
                 <div key={`risk-${path}`} className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 leading-5 last:border-r-0">
                   <p className="line-clamp-2">{text}</p>
@@ -92,12 +92,12 @@ export function PathMatrix({
           </div>
 
           <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-            <div className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 font-medium">ĞĞ¶¯½¨Òé</div>
+            <div className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 font-medium">è¡ŒåŠ¨å»ºè®®</div>
             {PATH_KEYS.map((path) => {
               const action = latestJudgeByPath[path]?.judge?.next_constraint || latestDebateByPath[path]?.coach?.hypothesis;
               return (
                 <div key={`action-${path}`} className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 leading-5 last:border-r-0">
-                  <p className="line-clamp-2">{action || "ÔİÎŞĞĞ¶¯½¨Òé"}</p>
+                  <p className="line-clamp-2">{action || "æš‚æ— è¡ŒåŠ¨å»ºè®®"}</p>
                 </div>
               );
             })}
@@ -105,9 +105,10 @@ export function PathMatrix({
         </div>
       ) : (
         <div className="panel-enter mt-2 rounded-[var(--radius-sm)] border border-dashed border-[var(--border)] bg-[rgba(11,17,29,0.58)] px-3 py-2 text-xs text-[var(--text-muted)]">
-          »¹Ã»ÓĞ¿É¶Ô±ÈÄÚÈİ¡£ÇëÏÈ·¢ËÍÒ»¸öÎÊÌâ£¬ÏµÍ³»áÉú³ÉÈıÂ·¾¶²îÒì¾ØÕó¡£
+          è¿˜æ²¡æœ‰å¯å¯¹æ¯”å†…å®¹ã€‚è¯·å…ˆå‘é€ä¸€ä¸ªé—®é¢˜ï¼Œç³»ç»Ÿä¼šç”Ÿæˆä¸‰è·¯å¾„å·®å¼‚çŸ©é˜µã€‚
         </div>
       )}
     </div>
   );
 }
+

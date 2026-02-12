@@ -1,4 +1,4 @@
-import { type RefObject } from "react";
+ï»¿import { type RefObject } from "react";
 import { MarkdownContent } from "./MarkdownContent";
 import { type ChatItem } from "./shared";
 
@@ -19,8 +19,8 @@ export function MessagePane({ messageListRef, isInitialState, messages, sending 
     >
       {isInitialState ? (
         <div className="panel-enter w-full max-w-2xl rounded-[var(--radius-md)] border border-[var(--border)] bg-[linear-gradient(180deg,rgba(19,31,50,0.88)_0%,rgba(16,24,40,0.88)_100%)] p-8 text-center shadow-[var(--shadow-mid)]">
-          <p className="font-display text-xl font-semibold tracking-tight text-white">»¶Ó­½øÈë¶àÂ·¾¶ÌÖÂÛÇø</p>
-          <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">ÌáÒ»¸öÃ÷È·ÎÊÌâ£¬ÏµÍ³»á×Ô¶¯Éú³ÉÈıÌõÂ·¾¶²¢¸ø³ö²îÒì¶Ô±È¡£</p>
+          <p className="font-display text-xl font-semibold tracking-tight text-white">æ¬¢è¿è¿›å…¥å¤šè·¯å¾„è®¨è®ºåŒº</p>
+          <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">æä¸€ä¸ªæ˜ç¡®é—®é¢˜ï¼Œç³»ç»Ÿä¼šè‡ªåŠ¨ç”Ÿæˆä¸‰æ¡è·¯å¾„å¹¶ç»™å‡ºå·®å¼‚å¯¹æ¯”ã€‚</p>
         </div>
       ) : (
         messages.map((item, idx) => (
@@ -43,3 +43,4 @@ export function MessagePane({ messageListRef, isInitialState, messages, sending 
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-export type ChatItem = { role: "user" | "assistant"; content: string };
+ï»¿export type ChatItem = { role: "user" | "assistant"; content: string };
 export type SseEvent = { event: string; data: string };
 export type PathKey = "radical" | "conservative" | "cross_domain";
 export type StatusValue = "idle" | "running" | "done" | "failed" | "partial_failed";
@@ -43,29 +43,29 @@ export type StageMeta = {
 
 export const PATH_KEYS: PathKey[] = ["radical", "conservative", "cross_domain"];
 export const PATH_LABELS: Record<PathKey, string> = {
-  radical: "¼¤½øÂ·¾¶",
-  conservative: "ÎÈ½¡Â·¾¶",
-  cross_domain: "¿çÓòÂ·¾¶",
+  radical: "æ¿€è¿›è·¯å¾„",
+  conservative: "ç¨³å¥è·¯å¾„",
+  cross_domain: "è·¨åŸŸè·¯å¾„",
 };
 export const STATUS_LABELS: Record<StatusValue, string> = {
-  idle: "´ı¿ªÊ¼",
-  running: "½øĞĞÖĞ",
-  done: "ÒÑÍê³É",
-  failed: "Ê§°Ü",
-  partial_failed: "²¿·ÖÊ§°Ü",
+  idle: "å¾…å¼€å§‹",
+  running: "è¿›è¡Œä¸­",
+  done: "å·²å®Œæˆ",
+  failed: "å¤±è´¥",
+  partial_failed: "éƒ¨åˆ†å¤±è´¥",
 };
 
 export const QUICK_PROMPTS = [
-  "Çë¶Ô±ÈÈıÌõÂ·¾¶ÔÚ·çÏÕÉÏµÄºËĞÄ²î±ğ",
-  "»ùÓÚµ±Ç°½á¹û¸ø³ö 30 ÌìĞĞ¶¯¼Æ»®",
-  "Ö»°´¿ÉÂäµØĞÔÖØĞÂÅÅĞò²¢ËµÃ÷Ô­Òò",
+  "è¯·å¯¹æ¯”ä¸‰æ¡è·¯å¾„åœ¨é£é™©ä¸Šçš„æ ¸å¿ƒå·®åˆ«",
+  "åŸºäºå½“å‰ç»“æœç»™å‡º 30 å¤©è¡ŒåŠ¨è®¡åˆ’",
+  "åªæŒ‰å¯è½åœ°æ€§é‡æ–°æ’åºå¹¶è¯´æ˜åŸå› ",
 ];
 
-export const DEFAULT_ASSISTANT_TEXT = "»¶Ó­½øÈë¶àÂ·¾¶ÌÖÂÛÇø£¬ÊäÈëÎÊÌâ¿ªÊ¼Ì½Ë÷¡£";
-export const RUNNING_ASSISTANT_TEXT = "ÕıÔÚ½øĞĞ¶àÂ·¾¶Éú³ÉÓë±çÂÛ£¬ÇëÉÔºò...";
-export const REQUEST_FAILED_TEXT = "ÇëÇóÊ§°Ü£¬ÇëÉÔºóÖØÊÔ¡£";
-export const EXEC_FAILED_TEXT = "Ö´ĞĞÊ§°Ü£¬ÇëÖØÊÔ¡£";
-export const NETWORK_FAILED_TEXT = "ÍøÂçÒì³££¬ÇëÉÔºóÖØÊÔ¡£";
+export const DEFAULT_ASSISTANT_TEXT = "æ¬¢è¿è¿›å…¥å¤šè·¯å¾„è®¨è®ºåŒºï¼Œè¾“å…¥é—®é¢˜å¼€å§‹æ¢ç´¢ã€‚";
+export const RUNNING_ASSISTANT_TEXT = "æ­£åœ¨è¿›è¡Œå¤šè·¯å¾„ç”Ÿæˆä¸è¾©è®ºï¼Œè¯·ç¨å€™...";
+export const REQUEST_FAILED_TEXT = "è¯·æ±‚å¤±è´¥ï¼Œè¯·ç¨åé‡è¯•ã€‚";
+export const EXEC_FAILED_TEXT = "æ‰§è¡Œå¤±è´¥ï¼Œè¯·é‡è¯•ã€‚";
+export const NETWORK_FAILED_TEXT = "ç½‘ç»œå¼‚å¸¸ï¼Œè¯·ç¨åé‡è¯•ã€‚";
 export const MAX_ROUND_LOGS = 120;
 
 export function pushCapped<T>(list: T[], item: T, max = MAX_ROUND_LOGS): T[] {
@@ -90,8 +90,8 @@ export function parseSseBlock(block: string): SseEvent | null {
 export function statusToStage(status: string, type: "path" | "debate"): StageMeta {
   if (status === "done") {
     return {
-      label: "ÒÑÍê³É",
-      detail: type === "path" ? "Â·¾¶½á¹ûÒÑ²ú³ö" : "±çÂÛÂÖ´ÎÒÑ½áÊø",
+      label: "å·²å®Œæˆ",
+      detail: type === "path" ? "è·¯å¾„ç»“æœå·²äº§å‡º" : "è¾©è®ºè½®æ¬¡å·²ç»“æŸ",
       progress: 100,
       tone: "done",
     };
@@ -99,8 +99,8 @@ export function statusToStage(status: string, type: "path" | "debate"): StageMet
 
   if (status === "partial_failed" || status === "failed") {
     return {
-      label: "²¿·ÖÊ§°Ü",
-      detail: "¿É²é¿´ÒÑÓĞ½á¹û»òÖØÊÔÊ§°ÜÂ·¾¶",
+      label: "éƒ¨åˆ†å¤±è´¥",
+      detail: "å¯æŸ¥çœ‹å·²æœ‰ç»“æœæˆ–é‡è¯•å¤±è´¥è·¯å¾„",
       progress: 75,
       tone: "warn",
     };
@@ -108,16 +108,16 @@ export function statusToStage(status: string, type: "path" | "debate"): StageMet
 
   if (status === "running") {
     return {
-      label: "½øĞĞÖĞ",
-      detail: type === "path" ? "ÕıÔÚÉú³É¶àÂ·¾¶¹Ûµã" : "ÕıÔÚ½»²æ±çÂÛÓëĞ£Ñé",
+      label: "è¿›è¡Œä¸­",
+      detail: type === "path" ? "æ­£åœ¨ç”Ÿæˆå¤šè·¯å¾„è§‚ç‚¹" : "æ­£åœ¨äº¤å‰è¾©è®ºä¸æ ¡éªŒ",
       progress: 50,
       tone: "running",
     };
   }
 
   return {
-    label: "´ı¿ªÊ¼",
-    detail: type === "path" ? "ÌáÎÊºó×Ô¶¯¿ªÊ¼" : "Â·¾¶½×¶ÎÍê³Éºó¿ªÊ¼",
+    label: "å¾…å¼€å§‹",
+    detail: type === "path" ? "æé—®åè‡ªåŠ¨å¼€å§‹" : "è·¯å¾„é˜¶æ®µå®Œæˆåå¼€å§‹",
     progress: 10,
     tone: "neutral",
   };
@@ -146,3 +146,4 @@ export function pickLatestByPath<T extends { path: PathKey }>(items: T[]) {
   }
   return latest;
 }
+

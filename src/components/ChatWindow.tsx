@@ -1,8 +1,9 @@
-"use client";
+ï»¿"use client";
 
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Composer } from "./chat/Composer";
 import { MessagePane } from "./chat/MessagePane";
+import { MultiPathTrace } from "./chat/MultiPathTrace";
 import { PathMatrix } from "./chat/PathMatrix";
 import { StatusRail } from "./chat/StatusRail";
 import {
@@ -240,14 +241,16 @@ export function ChatWindow() {
       PATH_KEYS.map((path) => {
         const report = pathReports[path];
         const summary = report?.final_hypothesis || report?.hypothesis;
-        if (report?.error) return { path, text: `Ê§°Ü£º${report.error}` };
+        if (report?.error) return { path, text: `å¤±è´¥ï¼š${report.error}` };
         if (summary) return { path, text: summary };
-        return { path, text: "ÔİÎŞ½á¹û" };
+        return { path, text: "æš‚æ— ç»“æœ" };
       }),
     [pathReports],
   );
 
-  const hasPathOutput = useMemo(() => pathSummaries.some((item) => item.text !== "ÔİÎŞ½á¹û"), [pathSummaries]);
+  const hasPathOutput = useMemo(() => pathSummaries.some((item) => item.text !== "æš‚æ— ç»“æœ"), [pathSummaries]);
+  const isExecuting =
+    sending || pathStatus === "running" || debateStatus === "running" || PATH_KEYS.some((path) => perPathStatus[path] === "running");
   const isInitialState =
     messages.length === 1 &&
     messages[0]?.role === "assistant" &&
@@ -262,13 +265,13 @@ export function ChatWindow() {
 
   const retryFailedPaths = async () => {
     if (sending || failedPaths.length === 0) return;
-    const target = failedPaths.map((path) => PATH_LABELS[path]).join("¡¢");
-    await submitMessage(`Çë½öÖØÊÔÊ§°ÜÂ·¾¶£º${target}¡£ÆäÓàÂ·¾¶ÑØÓÃÒÑÓĞ½á¹û¡£`);
+    const target = failedPaths.map((path) => PATH_LABELS[path]).join("ã€");
+    await submitMessage(`è¯·ä»…é‡è¯•å¤±è´¥è·¯å¾„ï¼š${target}ã€‚å…¶ä½™è·¯å¾„æ²¿ç”¨å·²æœ‰ç»“æœã€‚`);
   };
 
   const regenerateComparison = async () => {
     if (sending) return;
-    await submitMessage("Çë»ùÓÚµ±Ç°»á»°ÖØĞÂÊä³öÈıÂ·¾¶²îÒì¶Ô±È£¨½áÂÛ¡¢·çÏÕ¡¢ĞĞ¶¯½¨Òé£©²¢¸ø³öÓÅÏÈ¼¶¡£");
+    await submitMessage("è¯·åŸºäºå½“å‰ä¼šè¯é‡æ–°è¾“å‡ºä¸‰è·¯å¾„å·®å¼‚å¯¹æ¯”ï¼ˆç»“è®ºã€é£é™©ã€è¡ŒåŠ¨å»ºè®®ï¼‰å¹¶ç»™å‡ºä¼˜å…ˆçº§ã€‚");
   };
 
   return (
@@ -290,12 +293,18 @@ export function ChatWindow() {
         <div className="border-b border-[var(--border)] bg-[linear-gradient(120deg,rgba(20,31,52,0.75)_0%,rgba(17,25,40,0.72)_100%)] px-4 py-3">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <h2 className="font-display text-base font-semibold tracking-tight">¹ì¼£¶Ô»°</h2>
-              <p className="text-xs text-[var(--text-muted)]">ÏÈÌáÎÊ£¬ÔÙ¶Ô±ÈÈıÌõÂ·¾¶µÄ½áÂÛÓë·çÏÕ²îÒì¡£</p>
+              <h2 className="font-display text-base font-semibold tracking-tight">è½¨è¿¹å¯¹è¯</h2>
+              <p className="text-xs text-[var(--text-muted)]">å…ˆæé—®ï¼Œå†å¯¹æ¯”ä¸‰æ¡è·¯å¾„çš„ç»“è®ºä¸é£é™©å·®å¼‚ã€‚</p>
             </div>
-            <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs text-[var(--text-muted)]">
-              {sessionId ? `»á»° ${sessionId.slice(0, 8)}...` : "ĞÂ»á»°"}
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs text-[var(--text-muted)]">
+                <span className={`execution-dot ${isExecuting ? "running" : ""}`} />
+                {isExecuting ? "ç³»ç»Ÿæ‰§è¡Œä¸­" : "ç³»ç»Ÿå¾…å‘½"}
+              </span>
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs text-[var(--text-muted)]">
+                {sessionId ? `ä¼šè¯ ${sessionId.slice(0, 8)}...` : "æ–°ä¼šè¯"}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -309,6 +318,13 @@ export function ChatWindow() {
           pathReports={pathReports}
           onRetryFailedPaths={retryFailedPaths}
           onRegenerateComparison={regenerateComparison}
+        />
+
+        <MultiPathTrace
+          sending={sending}
+          perPathStatus={perPathStatus}
+          debateRounds={debateRounds}
+          judgeRounds={judgeRounds}
         />
 
         <MessagePane messageListRef={messageListRef} isInitialState={isInitialState} messages={messages} sending={sending} />
@@ -330,3 +346,4 @@ export function ChatWindow() {
     </div>
   );
 }
+

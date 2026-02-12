@@ -1,4 +1,4 @@
-import { type FormEvent, type KeyboardEvent, type RefObject } from "react";
+ï»¿import { type FormEvent, type KeyboardEvent, type RefObject } from "react";
 import { QUICK_PROMPTS, type PathKey } from "./shared";
 
 type ComposerProps = {
@@ -45,12 +45,12 @@ export function Composer({
       </div>
 
       {failedPaths.length > 0 ? (
-        <p className="mb-2 text-xs text-[var(--danger)]">{`¼ì²âµ½ ${failedPaths.length} ÌõÊ§°ÜÂ·¾¶£¬¿Éµã»÷¡°ÖØÊÔÊ§°ÜÂ·¾¶¡±¿ìËÙ»Ö¸´¡£`}</p>
+        <p className="mb-2 text-xs text-[var(--danger)]">{`æ£€æµ‹åˆ° ${failedPaths.length} æ¡å¤±è´¥è·¯å¾„ï¼Œå¯ç‚¹å‡»â€œé‡è¯•å¤±è´¥è·¯å¾„â€å¿«é€Ÿæ¢å¤ã€‚`}</p>
       ) : null}
 
       <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[rgba(9,14,25,0.9)] p-2 shadow-[var(--shadow-soft)] md:p-3">
         <div className="flex gap-2">
-          <label htmlFor="chat-input" className="sr-only">ÊäÈëÏûÏ¢</label>
+          <label htmlFor="chat-input" className="sr-only">è¾“å…¥æ¶ˆæ¯</label>
           <textarea
             ref={textAreaRef}
             id="chat-input"
@@ -59,8 +59,8 @@ export function Composer({
             onKeyDown={onInputKeyDown}
             disabled={sending}
             rows={2}
-            aria-label="ÁÄÌìÊäÈë¿ò"
-            placeholder="ÀıÈç£ºÈç¹ûÎÒ×ß¿çÑ§¿Æ·½Ïò£¬ÈıÄêºó×î¹Ø¼üµÄÄÜÁ¦²îÒìÊÇÊ²Ã´£¿"
+            aria-label="èŠå¤©è¾“å…¥æ¡†"
+            placeholder="ä¾‹å¦‚ï¼šå¦‚æœæˆ‘èµ°è·¨å­¦ç§‘æ–¹å‘ï¼Œä¸‰å¹´åæœ€å…³é”®çš„èƒ½åŠ›å·®å¼‚æ˜¯ä»€ä¹ˆï¼Ÿ"
             className="flex-1 resize-none rounded-[var(--radius-sm)] border border-[var(--border)] bg-[rgba(11,17,29,0.82)] px-3 py-2 text-sm outline-none transition-all focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
           />
           <button
@@ -69,14 +69,27 @@ export function Composer({
             aria-busy={sending}
             className="rounded-[var(--radius-sm)] bg-[linear-gradient(180deg,var(--accent)_0%,var(--accent-strong)_100%)] px-4 py-2 text-sm font-semibold text-white transition-all hover:-translate-y-px hover:shadow-[0_8px_18px_rgba(13,94,215,0.28)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
           >
-            {sending ? "Éú³ÉÖĞ..." : "·¢ËÍ"}
+            {sending ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="loader-ring" />
+                æ‰§è¡Œä¸­
+                <span className="typing-dots" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              </span>
+            ) : (
+              "å‘é€"
+            )}
           </button>
         </div>
-        <p className="mt-2 text-xs text-[var(--text-muted)]">°´ Enter ·¢ËÍ£¬Shift + Enter »»ĞĞ</p>
+        <p className="mt-2 text-xs text-[var(--text-muted)]">æŒ‰ Enter å‘é€ï¼ŒShift + Enter æ¢è¡Œ</p>
         {(debateRoundsCount > 0 || judgeRoundsCount > 0) && (
-          <p className="mt-1 text-xs text-[var(--text-muted)]">{`ÒÑÊÕ¼¯±çÂÛ ${debateRoundsCount} Ìõ£¬²ÃÅĞ ${judgeRoundsCount} Ìõ`}</p>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">{`å·²æ”¶é›†è¾©è®º ${debateRoundsCount} æ¡ï¼Œè£åˆ¤ ${judgeRoundsCount} æ¡`}</p>
         )}
       </div>
     </form>
   );
 }
+
