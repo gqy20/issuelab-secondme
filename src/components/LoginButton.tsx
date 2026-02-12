@@ -45,7 +45,7 @@ export function LoginButton() {
 
   if (checkingAuth) {
     return (
-      <div className="text-sm text-slate-500" aria-live="polite">
+      <div className="text-sm text-[var(--text-muted)]" aria-live="polite">
         正在检查登录状态...
       </div>
     );
@@ -57,7 +57,7 @@ export function LoginButton() {
         <button
           onClick={handleLogout}
           disabled={loading}
-          className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-[#f7eecf] disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? "退出中..." : "退出登录"}
         </button>

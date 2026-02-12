@@ -76,7 +76,7 @@ export function ChatWindow() {
     <div className="flex h-[62dvh] min-h-[420px] max-h-[560px] flex-col sm:h-[560px]">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">轨迹对话</h2>
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-[var(--text-muted)]">
           {sessionId ? `会话 ${sessionId.slice(0, 6)}...` : "新会话"}
         </span>
       </div>
@@ -93,7 +93,7 @@ export function ChatWindow() {
             className={`max-w-[88%] rounded-xl px-3 py-2 text-sm leading-6 ${
               item.role === "user"
                 ? "ml-auto bg-[var(--accent)] text-white"
-                : "bg-white text-slate-700"
+                : "bg-white text-[var(--foreground)]"
             }`}
           >
             {item.content}
@@ -114,7 +114,7 @@ export function ChatWindow() {
           rows={2}
           aria-label="聊天输入框"
           placeholder="例如：如果我走跨学科路线，三年后最关键的能力差是什么？"
-          className="flex-1 resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-slate-100"
+          className="flex-1 resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
         />
         <button
           type="submit"

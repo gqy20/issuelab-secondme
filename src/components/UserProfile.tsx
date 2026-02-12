@@ -42,24 +42,24 @@ export function UserProfile() {
   }, []);
 
   if (loading) {
-    return <p className="text-sm text-slate-500">正在加载用户信息...</p>;
+    return <p className="text-sm text-[var(--text-muted)]">正在加载用户信息...</p>;
   }
 
   if (error) {
-    return <p className="text-sm text-amber-700">{error}</p>;
+    return <p className="text-sm text-[var(--warning)]">{error}</p>;
   }
 
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold">{nickname}</h2>
-        <p className="mt-1 text-sm text-slate-600">{bio}</p>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">{bio}</p>
       </div>
       <div>
-        <p className="text-xs uppercase tracking-wide text-slate-500">兴趣标签</p>
+        <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">兴趣标签</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {shades.length === 0 ? (
-            <span className="text-sm text-slate-500">暂无标签</span>
+            <span className="text-sm text-[var(--text-muted)]">暂无标签</span>
           ) : (
             shades.map((item) => (
               <span
