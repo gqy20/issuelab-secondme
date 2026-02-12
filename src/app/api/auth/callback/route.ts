@@ -9,9 +9,23 @@ import { readJsonSafe } from "@/lib/secondme";
 
 type TokenPayload = {
   access_token?: string;
+  accessToken?: string;
   refresh_token?: string;
+  refreshToken?: string;
   expires_in?: number;
+  expiresIn?: number;
   user_id?: string;
+  userId?: string;
+  token?: {
+    access_token?: string;
+    accessToken?: string;
+    refresh_token?: string;
+    refreshToken?: string;
+    expires_in?: number;
+    expiresIn?: number;
+    user_id?: string;
+    userId?: string;
+  };
 };
 
 export async function GET(request: Request) {
@@ -60,13 +74,27 @@ export async function GET(request: Request) {
       ? (tokenJson as { data?: TokenPayload }).data
       : (tokenJson as TokenPayload | null);
 
-  const accessToken = rawData?.access_token;
-  const refreshToken = rawData?.refresh_token ?? "";
-  const userId = rawData?.user_id ?? "local-user";
-  const expiresIn = rawData?.expires_in ?? 7200;
+  const tokenBag = rawData?.token ?? rawData;
+  const accessToken = tokenBag?.access_token ?? tokenBag?.accessToken;
+  const refreshToken = tokenBag?.refresh_token ?? tokenBag?.refreshToken ?? "";
+  const userId = tokenBag?.user_id ?? tokenBag?.userId ?? "local-user";
+  const expiresIn = tokenBag?.expires_in ?? tokenBag?.expiresIn ?? 7200;
 
   if (!accessToken) {
-    return NextResponse.redirect(new URL("/?error=token_failed", request.url));
+    const reason =
+      tokenJson &&
+      typeof tokenJson === "object" &&
+      "message" in tokenJson &&
+      typeof (tokenJson as { message?: unknown }).message === "string"
+        ? (tokenJson as { message: string }).message
+        : `token_endpoint_status_${tokenResponse.status}`;
+    console.error("OAuth token exchange failed", {
+      status: tokenResponse.status,
+      response: tokenJson,
+    });
+    return NextResponse.redirect(
+      new URL(`/?error=token_failed&reason=${encodeURIComponent(reason)}`, request.url),
+    );
   }
 
   await prisma.user.upsert({

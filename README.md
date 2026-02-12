@@ -1,73 +1,51 @@
 # IssueLab x SecondMe
 
-一个基于 Next.js 的 SecondMe 集成项目，用于在 IssueLab 场景中进行多轨迹讨论、用户信息读取与笔记沉淀。
+这是一个面向“研究讨论场景”的 SecondMe 集成应用。  
+它的核心目标是：把一个问题放到讨论台上，让你和多个 SecondMe 能力一起完成分析、对话和沉淀。
 
-## 技术栈
+## 这个项目是干什么的
 
-- Next.js 16（App Router）
-- TypeScript
-- Tailwind CSS 4
-- Prisma（已包含 schema 与配置）
+你可以把它理解成一个“研究议题讨论工作台”：
+- 先登录你的 SecondMe 账号
+- 再围绕一个问题连续对话
+- 最后把有价值的结论沉淀为笔记
 
-## 已实现能力
+它不是通用聊天页面，而是偏“问题探索 + 观点收敛 + 结果留存”。
 
-- OAuth 登录流程路由
-  - `GET /api/auth/login`
-  - `GET /api/auth/callback`
-  - `POST /api/auth/logout`
-- 用户信息模块
-  - `GET /api/user/info`
-  - `GET /api/user/shades`
-- 对话与会话模块
-  - `POST /api/chat`
-  - `GET /api/sessions`
-- 笔记模块
-  - `POST /api/note`
-- 中文前端界面与交互组件
-  - 登录按钮、用户侧栏、对话窗口
+## 它能帮你完成什么
 
-## 本地启动
+- 快速进入讨论：围绕一个具体问题连续提问
+- 拉入个体画像：读取用户信息与标签，辅助理解上下文
+- 形成讨论轨迹：每轮对话都会形成会话记录
+- 沉淀关键内容：把结论或洞察写成笔记，避免讨论流失
 
-1. 安装依赖
+## 适合谁
 
-```bash
-npm install
-```
+- 需要做方案比较、路线判断、研究规划的人
+- 希望把“聊天”变成“可回看、可整理”的讨论过程的人
+- 在 IssueLab 场景里需要接入 SecondMe 能力的人
 
-2. 启动开发服务
+## 一次典型使用流程
 
-```bash
-npm run dev
-```
+1. 打开应用并登录 SecondMe
+2. 输入要讨论的问题（例如研究方向选择、方案权衡）
+3. 继续追问，形成多轮讨论
+4. 将关键观点保存为笔记
+5. 回看会话，整理可执行结论
 
-3. 访问
+## 你最终会得到什么
 
-`http://localhost:3000`
+- 一个有上下文的讨论过程（不是零散聊天）
+- 一组可复用的会话记录
+- 一份可持续积累的笔记内容
 
-## 构建验证
+## 当前线上地址
 
-```bash
-npm run build
-```
+- `https://issuelab-secondme.vercel.app`
 
-## 环境变量
+## 项目定位（边界）
 
-项目使用 `.env.local`，核心变量包括：
-
-- `SECONDME_CLIENT_ID`
-- `SECONDME_CLIENT_SECRET`
-- `SECONDME_REDIRECT_URI`
-- `SECONDME_API_BASE_URL`
-- `SECONDME_OAUTH_URL`
-- `SECONDME_TOKEN_ENDPOINT`
-- `SECONDME_REFRESH_ENDPOINT`
-- `DATABASE_URL`
-
-## 目录说明
-
-- `src/app`：页面与 API 路由
-- `src/components`：前端组件
-- `src/lib`：鉴权、服务请求与数据访问封装
-- `prisma`：Prisma schema
-- `.secondme`：SecondMe 工作流状态文件（已忽略）
+- 这是一个“讨论与沉淀”产品，不是全流程科研平台
+- 重点在接入 SecondMe 能力并完成闭环：登录 -> 讨论 -> 笔记
+- 后续可以继续扩展为多角色协作、轨迹对比、结果评估
 
