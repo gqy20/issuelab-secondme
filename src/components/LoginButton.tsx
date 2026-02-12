@@ -57,7 +57,7 @@ export function LoginButton() {
         <button
           onClick={handleLogout}
           disabled={loading}
-          className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? "退出中..." : "退出登录"}
         </button>
@@ -65,7 +65,7 @@ export function LoginButton() {
         <button
           onClick={handleLogin}
           disabled={loading}
-          className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-lg bg-[#0f172a] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? "跳转中..." : "使用 SecondMe 登录"}
         </button>

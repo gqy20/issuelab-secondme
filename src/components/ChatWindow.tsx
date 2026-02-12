@@ -36,9 +36,9 @@ type DebateRoundItem = {
 const PATH_KEYS: PathKey[] = ["radical", "conservative", "cross_domain"];
 
 const PATH_LABELS: Record<PathKey, string> = {
-  radical: "激进路径",
-  conservative: "稳健路径",
-  cross_domain: "跨域路径",
+  radical: "\u6fc0\u8fdb\u8def\u5f84",
+  conservative: "\u7a33\u5065\u8def\u5f84",
+  cross_domain: "\u8de8\u57df\u8def\u5f84",
 };
 
 const INITIAL_EXPANDED_PATHS: Record<PathKey, boolean> = {
@@ -67,15 +67,15 @@ function parseSseBlock(block: string): SseEvent | null {
 function getStatusLabel(status: string) {
   switch (status) {
     case "running":
-      return "进行中";
+      return "\u8fdb\u884c\u4e2d";
     case "done":
-      return "已完成";
+      return "\u5df2\u5b8c\u6210";
     case "partial_failed":
-      return "部分失败";
+      return "\u90e8\u5206\u5931\u8d25";
     case "failed":
-      return "失败";
+      return "\u5931\u8d25";
     case "idle":
-      return "待开始";
+      return "\u5f85\u5f00\u59cb";
     default:
       return status;
   }
@@ -103,7 +103,7 @@ export function ChatWindow() {
   const [messages, setMessages] = useState<ChatItem[]>([
     {
       role: "assistant",
-      content: "欢迎进入轨迹讨论区，输入你的问题开始探索。",
+      content: "\u6b22\u8fce\u8fdb\u5165\u8f68\u8ff9\u8ba8\u8bba\u533a\uff0c\u8f93\u5165\u4f60\u7684\u95ee\u9898\u5f00\u59cb\u63a2\u7d22\u3002",
     },
   ]);
 
@@ -158,7 +158,7 @@ export function ChatWindow() {
         const msg =
           typeof payload?.message === "string"
             ? payload.message
-            : "聊天请求失败，请稍后重试。";
+            : "\u804a\u5929\u8bf7\u6c42\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
         appendToLastAssistant(msg);
         return;
       }
@@ -194,7 +194,9 @@ export function ChatWindow() {
 
             if (parsed.event === "error") {
               appendToLastAssistant(
-                typeof payload.message === "string" ? payload.message : "聊天流中断，请稍后重试。",
+                typeof payload.message === "string"
+                  ? payload.message
+                  : "\u804a\u5929\u6d41\u4e2d\u65ad\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002",
               );
               continue;
             }
@@ -253,7 +255,7 @@ export function ChatWindow() {
         }
       }
     } catch {
-      appendToLastAssistant("网络异常，请稍后重试。");
+      appendToLastAssistant("\u7f51\u7edc\u5f02\u5e38\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002");
     } finally {
       setSending(false);
     }
@@ -271,47 +273,49 @@ export function ChatWindow() {
   };
 
   return (
-    <div className="flex h-[70dvh] min-h-[560px] max-h-[800px] flex-col">
+    <div className="flex h-[72dvh] min-h-[580px] max-h-[820px] flex-col">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">轨迹对话</h2>
+          <h2 className="text-xl font-semibold tracking-tight">{"\u8f68\u8ff9\u5bf9\u8bdd"}</h2>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            输入问题并行触发多条路径，实时比较观点分歧。
+            {"\u8f93\u5165\u95ee\u9898\u5e76\u884c\u89e6\u53d1\u591a\u6761\u8def\u5f84\uff0c\u5b9e\u65f6\u6bd4\u8f83\u89c2\u70b9\u5206\u6b67\u3002"}
           </p>
         </div>
-        <span className="rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--text-muted)]">
-          {sessionId ? `会话 ${sessionId.slice(0, 8)}...` : "新会话"}
+        <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs text-[var(--text-muted)]">
+          {sessionId ? `\u4f1a\u8bdd ${sessionId.slice(0, 8)}...` : "\u65b0\u4f1a\u8bdd"}
         </span>
       </div>
 
-      <div className="mt-4 grid min-h-0 flex-1 gap-3 lg:grid-cols-[300px,minmax(0,1fr)]">
-        <aside className="min-h-0 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+      <div className="mt-4 grid min-h-0 flex-1 grid-cols-[300px,minmax(0,1fr)] gap-3">
+        <aside className="min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
           <div className="space-y-3 text-sm">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">流程状态</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{"\u6d41\u7a0b\u72b6\u6001"}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <span
                   className={`rounded-full border px-2 py-1 text-xs font-medium ${getStatusClass(pathStatus)}`}
                 >
-                  路径系统：{getStatusLabel(pathStatus)}
+                  {"\u8def\u5f84\u7cfb\u7edf\uff1a"}
+                  {getStatusLabel(pathStatus)}
                 </span>
                 <span
                   className={`rounded-full border px-2 py-1 text-xs font-medium ${getStatusClass(debateStatus)}`}
                 >
-                  辩论轮次：{getStatusLabel(debateStatus)}
+                  {"\u8fa9\u8bba\u8f6e\u6b21\uff1a"}
+                  {getStatusLabel(debateStatus)}
                 </span>
               </div>
             </div>
 
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">路径结果</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{"\u8def\u5f84\u7ed3\u679c"}</p>
               <div className="mt-2 space-y-2">
                 {PATH_KEYS.map((key) => {
                   const report = pathReports[key];
                   const expanded = expandedPaths[key];
 
                   return (
-                    <div key={key} className="rounded-lg border border-[var(--border)] bg-white p-2.5">
+                    <div key={key} className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
                       <button
                         type="button"
                         onClick={() => togglePath(key)}
@@ -319,25 +323,27 @@ export function ChatWindow() {
                         aria-expanded={expanded}
                       >
                         <span className="text-xs font-medium text-[var(--text-muted)]">{PATH_LABELS[key]}</span>
-                        <span className="text-xs text-[var(--accent)]">{expanded ? "收起" : "展开"}</span>
+                        <span className="text-xs font-medium text-[var(--accent)]">
+                          {expanded ? "\u6536\u8d77" : "\u5c55\u5f00"}
+                        </span>
                       </button>
 
                       <p className="mt-1 text-sm font-medium leading-6">
                         {report?.error
-                          ? `失败：${report.error}`
+                          ? `\u5931\u8d25\uff1a${report.error}`
                           : report?.hypothesis
                             ? report.hypothesis
-                            : "等待结果..."}
+                            : "\u7b49\u5f85\u7ed3\u679c..."}
                       </p>
 
                       {expanded ? (
                         <div className="mt-2 space-y-2 border-t border-[var(--border)] pt-2 text-xs leading-5 text-[var(--text-muted)]">
-                          {report?.why ? <p>形成原因：{report.why}</p> : null}
-                          {report?.test_plan ? <p>验证计划：{report.test_plan}</p> : null}
-                          {report?.risk_guardrail ? <p>风险护栏：{report.risk_guardrail}</p> : null}
+                          {report?.why ? <p>{"\u5f62\u6210\u539f\u56e0\uff1a"}{report.why}</p> : null}
+                          {report?.test_plan ? <p>{"\u9a8c\u8bc1\u8ba1\u5212\uff1a"}{report.test_plan}</p> : null}
+                          {report?.risk_guardrail ? <p>{"\u98ce\u9669\u62a4\u680f\uff1a"}{report.risk_guardrail}</p> : null}
                           {report?.next_steps && report.next_steps.length > 0 ? (
                             <div>
-                              <p>下一步：</p>
+                              <p>{"\u4e0b\u4e00\u6b65\uff1a"}</p>
                               <ul className="mt-1 list-disc pl-5">
                                 {report.next_steps.map((step) => (
                                   <li key={step}>{step}</li>
@@ -345,7 +351,7 @@ export function ChatWindow() {
                               </ul>
                             </div>
                           ) : null}
-                          {!report ? <p>暂无详细内容。</p> : null}
+                          {!report ? <p>{"\u6682\u65e0\u8be6\u7ec6\u5185\u5bb9\u3002"}</p> : null}
                         </div>
                       ) : null}
                     </div>
@@ -355,29 +361,29 @@ export function ChatWindow() {
             </div>
 
             {synthesis?.summary ? (
-              <div className="rounded-lg border border-[var(--border)] bg-white p-2.5">
-                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">综合建议</p>
+              <div className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{"\u7efc\u5408\u5efa\u8bae"}</p>
                 <p className="mt-1 text-sm leading-6">{synthesis.summary}</p>
               </div>
             ) : null}
 
             {typeof evaluation?.score === "number" ? (
-              <div className="rounded-lg border border-[var(--border)] bg-white p-2.5">
-                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">评估分</p>
+              <div className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{"\u8bc4\u4f30\u5206"}</p>
                 <p className="mt-1 text-sm">{evaluation.score}</p>
               </div>
             ) : null}
 
             {debateRounds.length > 0 ? (
-              <div className="rounded-lg border border-[var(--border)] bg-white p-2.5">
-                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">最近辩论</p>
+              <div className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{"\u6700\u8fd1\u8fa9\u8bba"}</p>
                 <div className="mt-2 space-y-1.5 text-xs leading-5 text-[var(--text-muted)]">
                   {debateRounds.slice(-6).map((item, idx) => (
                     <p key={`${item.path}-${item.round}-${idx}`}>
-                      R{item.round} {PATH_LABELS[item.path]}：
+                      {`R${item.round} ${PATH_LABELS[item.path]}\uff1a`}
                       {item.error
-                        ? `失败 - ${item.error}`
-                        : `${item.coach?.hypothesis ?? "暂无假设"} | ${item.secondme ?? "暂无回复"}`}
+                        ? `\u5931\u8d25 - ${item.error}`
+                        : `${item.coach?.hypothesis ?? "\u6682\u65e0\u5047\u8bbe"} | ${item.secondme ?? "\u6682\u65e0\u56de\u590d"}`}
                     </p>
                   ))}
                 </div>
@@ -386,20 +392,20 @@ export function ChatWindow() {
           </div>
         </aside>
 
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
           <div
             ref={messageListRef}
             aria-live="polite"
-            aria-label="聊天消息列表"
-            className="flex-1 space-y-3 overflow-y-auto p-3"
+            aria-label={"\u804a\u5929\u6d88\u606f\u5217\u8868"}
+            className="flex-1 space-y-3 overflow-y-auto bg-[var(--surface-2)] p-3"
           >
             {messages.map((item, idx) => (
               <div
                 key={`${item.role}-${idx}`}
-                className={`max-w-[82%] rounded-xl px-3 py-2 text-sm leading-6 ${
+                className={`max-w-[80%] rounded-lg px-3 py-2 text-sm leading-6 shadow-[0_1px_2px_rgba(17,24,39,0.06)] ${
                   item.role === "user"
-                    ? "ml-auto bg-[var(--accent)] text-white"
-                    : "bg-white text-[var(--foreground)]"
+                    ? "ml-auto bg-[#0f172a] text-white"
+                    : "border border-[var(--border)] bg-white text-[var(--foreground)]"
                 }`}
               >
                 {item.content || (sending && idx === messages.length - 1 ? "..." : "")}
@@ -407,11 +413,9 @@ export function ChatWindow() {
             ))}
           </div>
 
-          <form ref={formRef} onSubmit={onSubmit} className="border-t border-[var(--border)] bg-white p-3">
+          <form ref={formRef} onSubmit={onSubmit} className="border-t border-[var(--border)] bg-[var(--surface)] p-3">
             <div className="flex gap-2">
-              <label htmlFor="chat-input" className="sr-only">
-                输入消息
-              </label>
+              <label htmlFor="chat-input" className="sr-only">{"\u8f93\u5165\u6d88\u606f"}</label>
               <textarea
                 id="chat-input"
                 value={input}
@@ -419,20 +423,20 @@ export function ChatWindow() {
                 onKeyDown={onInputKeyDown}
                 disabled={sending}
                 rows={2}
-                aria-label="聊天输入框"
-                placeholder="例如：如果我走跨学科方向，三年后最关键的能力差异是什么？"
-                className="flex-1 resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
+                aria-label={"\u804a\u5929\u8f93\u5165\u6846"}
+                placeholder={"\u4f8b\u5982\uff1a\u5982\u679c\u6211\u8d70\u8de8\u5b66\u79d1\u65b9\u5411\uff0c\u4e09\u5e74\u540e\u6700\u5173\u952e\u7684\u80fd\u529b\u5dee\u5f02\u662f\u4ec0\u4e48\uff1f"}
+                className="flex-1 resize-none rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
               />
               <button
                 type="submit"
                 disabled={sending}
                 aria-busy={sending}
-                className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-lg bg-[#0f172a] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {sending ? "生成中..." : "发送"}
+                {sending ? "\u751f\u6210\u4e2d..." : "\u53d1\u9001"}
               </button>
             </div>
-            <p className="mt-2 text-xs text-[var(--text-muted)]">按 Enter 发送，Shift + Enter 换行</p>
+            <p className="mt-2 text-xs text-[var(--text-muted)]">{"\u6309 Enter \u53d1\u9001\uff0cShift + Enter \u6362\u884c"}</p>
           </form>
         </section>
       </div>

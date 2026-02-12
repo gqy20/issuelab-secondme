@@ -50,13 +50,13 @@ export function UserProfile() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold">{nickname}</h2>
+        <h2 className="text-lg font-semibold tracking-tight">{nickname}</h2>
         <p className="mt-1 text-sm text-[var(--text-muted)]">{bio}</p>
       </div>
       <div>
-        <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">兴趣标签</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">兴趣标签</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {shades.length === 0 ? (
             <span className="text-sm text-[var(--text-muted)]">暂无标签</span>
@@ -64,7 +64,7 @@ export function UserProfile() {
             shades.map((item) => (
               <span
                 key={item}
-                className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs text-[var(--accent)]"
+                className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs text-[var(--foreground)]"
               >
                 {item}
               </span>
