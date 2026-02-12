@@ -60,3 +60,32 @@ h3,
   background: var(--accent-soft);
   color: #f8fbff;
 }
+
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes status-running-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(56, 189, 248, 0);
+  }
+}
+
+.panel-enter {
+  animation: panel-enter 240ms ease-out;
+}
+
+.status-running {
+  animation: status-running-pulse 1400ms ease-in-out infinite;
+}

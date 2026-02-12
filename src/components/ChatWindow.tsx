@@ -1,212 +1,33 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Composer } from "./chat/Composer";
+import { MessagePane } from "./chat/MessagePane";
+import { PathMatrix } from "./chat/PathMatrix";
+import { StatusRail } from "./chat/StatusRail";
+import {
+  DEFAULT_ASSISTANT_TEXT,
+  EXEC_FAILED_TEXT,
+  NETWORK_FAILED_TEXT,
+  parseSseBlock,
+  PATH_KEYS,
+  PATH_LABELS,
+  pickLatestByPath,
+  pushCapped,
+  REQUEST_FAILED_TEXT,
+  RUNNING_ASSISTANT_TEXT,
+  statusToStage,
+  type ChatItem,
+  type DebateRoundItem,
+  type Evaluation,
+  type JudgeRoundItem,
+  type PathKey,
+  type PathReport,
+  type StatusValue,
+  type Synthesis,
+} from "./chat/shared";
 
-type ChatItem = { role: "user" | "assistant"; content: string };
-type SseEvent = { event: string; data: string };
-type PathKey = "radical" | "conservative" | "cross_domain";
-type StatusValue = "idle" | "running" | "done" | "failed" | "partial_failed";
-
-type PathReport = {
-  path: PathKey;
-  final_hypothesis?: string;
-  hypothesis?: string;
-  confidence?: number;
-  error?: string;
-};
-
-type Synthesis = { summary?: string; recommendation?: string };
-type Evaluation = { score?: number };
-
-type DebateRoundItem = {
-  path: PathKey;
-  round: number;
-  coach?: { hypothesis?: string };
-  secondme?: string;
-  error?: string;
-};
-
-type JudgeRoundItem = {
-  path: PathKey;
-  round: number;
-  judge?: {
-    round_score?: number;
-    critical_gap?: string;
-    next_constraint?: string;
-    verdict?: string;
-  };
-  error?: string;
-};
-
-const PATH_KEYS: PathKey[] = ["radical", "conservative", "cross_domain"];
-const PATH_LABELS: Record<PathKey, string> = {
-  radical: "激进路径",
-  conservative: "稳健路径",
-  cross_domain: "跨域路径",
-};
-const STATUS_LABELS: Record<StatusValue, string> = {
-  idle: "待开始",
-  running: "进行中",
-  done: "已完成",
-  failed: "失败",
-  partial_failed: "部分失败",
-};
-const QUICK_PROMPTS = [
-  "请对比三条路径在风险上的核心差别",
-  "基于当前结果给出 30 天行动计划",
-  "只按可落地性重新排序并说明原因",
-];
-
-type StageMeta = {
-  label: string;
-  detail: string;
-  progress: number;
-  tone: "neutral" | "running" | "done" | "warn";
-};
-
-const DEFAULT_ASSISTANT_TEXT = "欢迎进入多路径讨论区，输入问题开始探索。";
-const RUNNING_ASSISTANT_TEXT = "正在进行多路径生成与辩论，请稍候...";
-const REQUEST_FAILED_TEXT = "请求失败，请稍后重试。";
-const EXEC_FAILED_TEXT = "执行失败，请重试。";
-const NETWORK_FAILED_TEXT = "网络异常，请稍后重试。";
-const MAX_ROUND_LOGS = 120;
-
-function pushCapped<T>(list: T[], item: T, max = MAX_ROUND_LOGS): T[] {
-  if (list.length < max) return [...list, item];
-  return [...list.slice(list.length - max + 1), item];
-}
-
-function parseSseBlock(block: string): SseEvent | null {
-  const lines = block.split(/\r?\n/);
-  let event = "message";
-  const dataLines: string[] = [];
-
-  for (const line of lines) {
-    if (line.startsWith("event:")) event = line.slice(6).trim();
-    if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
-  }
-
-  if (dataLines.length === 0) return null;
-  return { event, data: dataLines.join("\n") };
-}
-
-function statusToStage(status: string, type: "path" | "debate"): StageMeta {
-  if (status === "done") {
-    return {
-      label: "已完成",
-      detail: type === "path" ? "路径结果已产出" : "辩论轮次已结束",
-      progress: 100,
-      tone: "done",
-    };
-  }
-
-  if (status === "partial_failed" || status === "failed") {
-    return {
-      label: "部分失败",
-      detail: "可查看已有结果或重试失败路径",
-      progress: 75,
-      tone: "warn",
-    };
-  }
-
-  if (status === "running") {
-    return {
-      label: "进行中",
-      detail: type === "path" ? "正在生成多路径观点" : "正在交叉辩论与校验",
-      progress: 50,
-      tone: "running",
-    };
-  }
-
-  return {
-    label: "待开始",
-    detail: type === "path" ? "提问后自动开始" : "路径阶段完成后开始",
-    progress: 10,
-    tone: "neutral",
-  };
-}
-
-function badgeClass(tone: StageMeta["tone"]) {
-  if (tone === "done") return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  if (tone === "running") return "border-sky-200 bg-sky-50 text-sky-700";
-  if (tone === "warn") return "border-amber-200 bg-amber-50 text-amber-700";
-  return "border-slate-200 bg-slate-50 text-slate-600";
-}
-
-function pathBadgeClass(path: PathKey) {
-  if (path === "radical") return "border-[var(--path-radical)] bg-[var(--path-radical-soft)] text-[var(--path-radical)]";
-  if (path === "conservative") {
-    return "border-[var(--path-conservative)] bg-[var(--path-conservative-soft)] text-[var(--path-conservative)]";
-  }
-  return "border-[var(--path-cross)] bg-[var(--path-cross-soft)] text-[var(--path-cross)]";
-}
-
-function pickLatestByPath<T extends { path: PathKey }>(items: T[]) {
-  const latest: Partial<Record<PathKey, T>> = {};
-  for (let i = items.length - 1; i >= 0; i -= 1) {
-    const item = items[i];
-    if (!latest[item.path]) latest[item.path] = item;
-  }
-  return latest;
-}
-
-function MarkdownContent({ content }: { content: string }) {
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-        ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
-        ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>,
-        li: ({ children }) => <li>{children}</li>,
-        h1: ({ children }) => <h1 className="mb-2 text-base font-semibold">{children}</h1>,
-        h2: ({ children }) => <h2 className="mb-2 text-sm font-semibold">{children}</h2>,
-        h3: ({ children }) => <h3 className="mb-2 text-sm font-semibold">{children}</h3>,
-        blockquote: ({ children }) => (
-          <blockquote className="mb-2 border-l-2 border-slate-300 pl-3 text-[var(--text-muted)]">{children}</blockquote>
-        ),
-        code: ({ className, children, ...props }) => {
-          const isInline = !className?.includes("language-");
-          if (isInline) {
-            return (
-              <code className="rounded bg-slate-100 px-1 py-0.5 text-[13px] text-slate-800" {...props}>
-                {children}
-              </code>
-            );
-          }
-          return (
-            <code className="block overflow-x-auto rounded-md bg-slate-900 p-3 text-[13px] text-slate-100" {...props}>
-              {children}
-            </code>
-          );
-        },
-        pre: ({ children }) => <pre className="mb-2 last:mb-0">{children}</pre>,
-        a: ({ href, children }) => (
-          <a
-            href={href}
-            target="_blank"
-            rel="noreferrer"
-            className="font-medium text-[var(--accent-strong)] underline underline-offset-2"
-          >
-            {children}
-          </a>
-        ),
-        table: ({ children }) => (
-          <div className="mb-2 overflow-x-auto last:mb-0">
-            <table className="min-w-full border-collapse text-left text-[13px]">{children}</table>
-          </div>
-        ),
-        thead: ({ children }) => <thead className="bg-slate-100">{children}</thead>,
-        th: ({ children }) => <th className="border border-slate-300 px-2 py-1 font-semibold">{children}</th>,
-        td: ({ children }) => <td className="border border-slate-300 px-2 py-1 align-top">{children}</td>,
-      }}
-    >
-      {content}
-    </ReactMarkdown>
-  );
-}
+type PathSummary = { path: PathKey; text: string };
 
 export function ChatWindow() {
   const [input, setInput] = useState("");
@@ -414,22 +235,19 @@ export function ChatWindow() {
   const failedPaths = PATH_KEYS.filter((path) => Boolean(pathReports[path]?.error));
   const isAllPathIdle = PATH_KEYS.every((path) => perPathStatus[path] === "idle");
 
-  const pathSummaries = useMemo(
+  const pathSummaries = useMemo<PathSummary[]>(
     () =>
       PATH_KEYS.map((path) => {
         const report = pathReports[path];
         const summary = report?.final_hypothesis || report?.hypothesis;
-        if (report?.error) return { path, text: `失败：${report.error}` };
+        if (report?.error) return { path, text: `ʧ�ܣ�${report.error}` };
         if (summary) return { path, text: summary };
-        return { path, text: "暂无结果" };
+        return { path, text: "���޽��" };
       }),
     [pathReports],
   );
 
-  const hasPathOutput = useMemo(
-    () => pathSummaries.some((item) => item.text !== "暂无结果"),
-    [pathSummaries],
-  );
+  const hasPathOutput = useMemo(() => pathSummaries.some((item) => item.text !== "���޽��"), [pathSummaries]);
   const isInitialState =
     messages.length === 1 &&
     messages[0]?.role === "assistant" &&
@@ -444,269 +262,70 @@ export function ChatWindow() {
 
   const retryFailedPaths = async () => {
     if (sending || failedPaths.length === 0) return;
-    const target = failedPaths.map((path) => PATH_LABELS[path]).join("、");
-    await submitMessage(`请仅重试失败路径：${target}。其余路径沿用已有结果。`);
+    const target = failedPaths.map((path) => PATH_LABELS[path]).join("��");
+    await submitMessage(`�������ʧ��·����${target}������·���������н����`);
   };
 
   const regenerateComparison = async () => {
     if (sending) return;
-    await submitMessage("请基于当前会话重新输出三路径差异对比（结论、风险、行动建议）并给出优先级。");
+    await submitMessage("����ڵ�ǰ�Ự���������·������Աȣ����ۡ����ա��ж����飩���������ȼ���");
   };
 
   return (
     <div className="grid min-h-[640px] grid-cols-1 gap-3 lg:grid-cols-[320px_1fr] xl:h-[78dvh] xl:max-h-[900px]">
-      <aside className="overflow-y-auto rounded-[var(--radius-md)] border border-[var(--border)] bg-[linear-gradient(180deg,rgba(20,30,48,0.85)_0%,rgba(16,24,40,0.7)_100%)] p-3 text-sm">
-        <div className="space-y-3">
-          <div className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-2.5 shadow-[var(--shadow-soft)]">
-            <p className="text-xs font-medium text-[var(--text-muted)]">流程总览</p>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-900/45">
-              <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${overallProgress}%` }} />
-            </div>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">{`当前进度 ${overallProgress}%`}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(pathStage.tone)}`}>路径：{pathStage.label}</span>
-              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(debateStage.tone)}`}>辩论：{debateStage.label}</span>
-            </div>
-            <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">{pathStage.detail}</p>
-            <p className="text-xs leading-5 text-[var(--text-muted)]">{debateStage.detail}</p>
-          </div>
-
-          <div className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-2.5 shadow-[var(--shadow-soft)]">
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">路径状态</p>
-            {isAllPathIdle ? (
-              <p className="mt-2 text-xs text-[var(--text-muted)]">发送首条问题后开始运行</p>
-            ) : (
-              <div className="mt-2 space-y-2">
-                {PATH_KEYS.map((path) => (
-                  <span key={`status-${path}`} className={`inline-flex rounded-full border px-2 py-1 text-xs ${pathBadgeClass(path)}`}>
-                    {PATH_LABELS[path]}：{STATUS_LABELS[perPathStatus[path]]}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {hasPathOutput ? (
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">路径摘要</p>
-              {PATH_KEYS.map((path) => {
-                const report = pathReports[path];
-                const summary = report?.final_hypothesis || report?.hypothesis;
-                return (
-                  <div key={path} className={`mt-2 rounded-[var(--radius-sm)] border bg-[var(--surface-2)] p-2.5 shadow-[var(--shadow-soft)] ${pathBadgeClass(path)}`}>
-                    <p className="text-xs font-medium text-[var(--text-muted)]">{PATH_LABELS[path]}</p>
-                    <p className="mt-1 line-clamp-2 text-sm text-[var(--foreground)]">
-                      {report?.error ? `失败：${report.error}` : summary || "等待结果..."}
-                    </p>
-                    {typeof report?.confidence === "number" ? (
-                      <p className="mt-1 text-xs text-[var(--text-muted)]">{`置信度 ${report.confidence}`}</p>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="rounded-[var(--radius-sm)] border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-3 text-xs leading-5 text-[var(--text-muted)]">
-              首次提问后，这里会展示每条路径的阶段状态和摘要。
-            </div>
-          )}
-
-          {synthesis?.summary ? (
-            <div className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-2.5 shadow-[var(--shadow-soft)]">
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">综合结论</p>
-              <p className="mt-1 text-sm leading-6">{synthesis.summary}</p>
-              {synthesis.recommendation ? (
-                <p className="mt-1 text-xs text-[var(--text-muted)]">建议：{synthesis.recommendation}</p>
-              ) : null}
-            </div>
-          ) : null}
-
-          {typeof evaluation?.score === "number" ? (
-            <div className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-2.5 shadow-[var(--shadow-soft)]">
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">评估分</p>
-              <p className="mt-1 text-sm">{evaluation.score}</p>
-            </div>
-          ) : null}
-        </div>
-      </aside>
+      <StatusRail
+        overallProgress={overallProgress}
+        pathStage={pathStage}
+        debateStage={debateStage}
+        isAllPathIdle={isAllPathIdle}
+        perPathStatus={perPathStatus}
+        pathReports={pathReports}
+        pathSummaries={pathSummaries}
+        hasPathOutput={hasPathOutput}
+        synthesis={synthesis}
+        evaluation={evaluation}
+      />
 
       <section className="flex min-h-0 flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[linear-gradient(180deg,rgba(17,25,40,0.9)_0%,rgba(12,18,32,0.9)_100%)]">
         <div className="border-b border-[var(--border)] bg-[linear-gradient(120deg,rgba(20,31,52,0.75)_0%,rgba(17,25,40,0.72)_100%)] px-4 py-3">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <h2 className="font-display text-base font-semibold tracking-tight">轨迹对话</h2>
-              <p className="text-xs text-[var(--text-muted)]">先提问，再对比三条路径的结论与风险差异。</p>
+              <h2 className="font-display text-base font-semibold tracking-tight">�켣�Ի�</h2>
+              <p className="text-xs text-[var(--text-muted)]">�����ʣ��ٶԱ�����·���Ľ�������ղ��졣</p>
             </div>
             <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs text-[var(--text-muted)]">
-              {sessionId ? `会话 ${sessionId.slice(0, 8)}...` : "新会话"}
+              {sessionId ? `�Ự ${sessionId.slice(0, 8)}...` : "�»Ự"}
             </span>
           </div>
         </div>
 
-        <div className="border-b border-[var(--border)] bg-[linear-gradient(180deg,rgba(18,28,46,0.9)_0%,rgba(15,24,40,0.88)_100%)] px-4 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">路径差异矩阵</p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={retryFailedPaths}
-                disabled={sending || failedPaths.length === 0}
-                className="rounded-md border border-[var(--danger)] bg-[var(--danger-soft)] px-2.5 py-1 text-xs font-medium text-[var(--danger)] transition-colors hover:bg-[#ffe7e4] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                重试失败路径
-              </button>
-              <button
-                type="button"
-                onClick={regenerateComparison}
-                disabled={sending}
-                className="rounded-md border border-[var(--accent)] bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--accent-strong)] transition-colors hover:bg-[#d9e8ff] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                重新生成对比
-              </button>
-            </div>
-          </div>
+        <PathMatrix
+          sending={sending}
+          failedPaths={failedPaths}
+          hasPathOutput={hasPathOutput}
+          pathSummaries={pathSummaries}
+          latestDebateByPath={latestDebateByPath}
+          latestJudgeByPath={latestJudgeByPath}
+          pathReports={pathReports}
+          onRetryFailedPaths={retryFailedPaths}
+          onRegenerateComparison={regenerateComparison}
+        />
 
-          {hasPathOutput ? (
-            <div className="mt-2 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--border)] bg-[rgba(10,16,30,0.35)]">
-              <div className="grid grid-cols-[120px_1fr_1fr_1fr] bg-[rgba(25,40,64,0.74)] text-xs font-medium text-[var(--text-muted)]">
-                <div className="border-r border-[var(--border)] px-2 py-1.5">维度</div>
-                {PATH_KEYS.map((path) => (
-                  <div
-                    key={`head-${path}`}
-                    className={`border-r border-[var(--border)] px-2 py-1.5 last:border-r-0 ${pathBadgeClass(path)}`}
-                  >
-                    {PATH_LABELS[path]}
-                  </div>
-                ))}
-              </div>
+        <MessagePane messageListRef={messageListRef} isInitialState={isInitialState} messages={messages} sending={sending} />
 
-              <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-                <div className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 font-medium">结论差异</div>
-                {pathSummaries.map((item) => (
-                  <div key={`summary-${item.path}`} className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 leading-5 last:border-r-0">
-                    <p className="line-clamp-2">{item.text}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-                <div className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 font-medium">风险差异</div>
-                {PATH_KEYS.map((path) => {
-                  const judgeGap = latestJudgeByPath[path]?.judge?.critical_gap;
-                  const err = pathReports[path]?.error;
-                  const text = err ? `失败：${err}` : judgeGap || "暂无显式风险差异";
-                  return (
-                    <div key={`risk-${path}`} className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 leading-5 last:border-r-0">
-                      <p className="line-clamp-2">{text}</p>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-                <div className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 font-medium">行动建议</div>
-                {PATH_KEYS.map((path) => {
-                  const action = latestJudgeByPath[path]?.judge?.next_constraint || latestDebateByPath[path]?.coach?.hypothesis;
-                  return (
-                    <div key={`action-${path}`} className="border-r border-[var(--border)] bg-[rgba(14,21,35,0.66)] px-2 py-2 leading-5 last:border-r-0">
-                      <p className="line-clamp-2">{action || "暂无行动建议"}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <div className="mt-2 rounded-[var(--radius-sm)] border border-dashed border-[var(--border)] bg-[rgba(11,17,29,0.58)] px-3 py-2 text-xs text-[var(--text-muted)]">
-              还没有可对比内容。请先发送一个问题，系统会生成三路径差异矩阵。
-            </div>
-          )}
-        </div>
-
-        <div
-          ref={messageListRef}
-          className={`flex-1 overflow-y-auto bg-[linear-gradient(180deg,rgba(11,17,29,0.8)_0%,rgba(10,15,26,0.9)_100%)] p-4 ${
-            isInitialState ? "grid place-items-center" : "space-y-3"
-          }`}
-        >
-          {isInitialState ? (
-            <div className="w-full max-w-2xl rounded-[var(--radius-md)] border border-[var(--border)] bg-[linear-gradient(180deg,rgba(19,31,50,0.88)_0%,rgba(16,24,40,0.88)_100%)] p-8 text-center shadow-[var(--shadow-mid)]">
-              <p className="font-display text-xl font-semibold tracking-tight text-white">欢迎进入多路径讨论区</p>
-              <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
-                提一个明确问题，系统会自动生成三条路径并给出差异对比。
-              </p>
-            </div>
-          ) : (
-            messages.map((item, idx) => (
-              <div
-                key={`${item.role}-${idx}`}
-                className={`max-w-[80%] rounded-lg px-3 py-2 text-sm leading-6 ${
-                  item.role === "user"
-                    ? "ml-auto bg-[var(--accent-strong)] text-white"
-                    : "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--foreground)] shadow-[var(--shadow-soft)]"
-                }`}
-              >
-                {item.role === "assistant" ? (
-                  <MarkdownContent content={item.content || (sending && idx === messages.length - 1 ? "..." : "")} />
-                ) : (
-                  item.content || (sending && idx === messages.length - 1 ? "..." : "")
-                )}
-              </div>
-            ))
-          )}
-        </div>
-
-        <form ref={formRef} onSubmit={onSubmit} className="border-t border-[var(--border)] bg-[linear-gradient(180deg,rgba(20,31,52,0.78)_0%,rgba(15,24,40,0.82)_100%)] p-4">
-          <div className="mb-2 flex flex-wrap gap-2">
-            {QUICK_PROMPTS.map((prompt) => (
-              <button
-                key={prompt}
-                type="button"
-                onClick={() => applyQuickPrompt(prompt)}
-                disabled={sending}
-                className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs font-medium text-[var(--text-muted)] transition-all hover:-translate-y-px hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
-
-          {failedPaths.length > 0 ? (
-            <p className="mb-2 text-xs text-[var(--danger)]">
-              {`检测到 ${failedPaths.length} 条失败路径，可点击“重试失败路径”快速恢复。`}
-            </p>
-          ) : null}
-
-          <div className="flex gap-2">
-            <label htmlFor="chat-input" className="sr-only">输入消息</label>
-            <textarea
-              ref={textAreaRef}
-              id="chat-input"
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={onInputKeyDown}
-              disabled={sending}
-              rows={2}
-              aria-label="聊天输入框"
-              placeholder="例如：如果我走跨学科方向，三年后最关键的能力差异是什么？"
-              className="flex-1 resize-none rounded-[var(--radius-sm)] border border-[var(--border)] bg-[rgba(11,17,29,0.82)] px-3 py-2 text-sm outline-none transition-all focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
-            />
-            <button
-              type="submit"
-              disabled={sending}
-              aria-busy={sending}
-              className="rounded-lg bg-[linear-gradient(180deg,var(--accent)_0%,var(--accent-strong)_100%)] px-4 py-2 text-sm font-semibold text-white transition-all hover:-translate-y-px hover:shadow-[0_8px_18px_rgba(13,94,215,0.28)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
-            >
-              {sending ? "生成中..." : "发送"}
-            </button>
-          </div>
-
-          <p className="mt-2 text-xs text-[var(--text-muted)]">按 Enter 发送，Shift + Enter 换行</p>
-          {(debateRounds.length > 0 || judgeRounds.length > 0) && (
-            <p className="mt-1 text-xs text-[var(--text-muted)]">
-              {`已收集辩论 ${debateRounds.length} 条，裁判 ${judgeRounds.length} 条`}
-            </p>
-          )}
-        </form>
+        <Composer
+          formRef={formRef}
+          textAreaRef={textAreaRef}
+          input={input}
+          sending={sending}
+          failedPaths={failedPaths}
+          debateRoundsCount={debateRounds.length}
+          judgeRoundsCount={judgeRounds.length}
+          onSubmit={onSubmit}
+          onInputChange={setInput}
+          onInputKeyDown={onInputKeyDown}
+          onApplyQuickPrompt={applyQuickPrompt}
+        />
       </section>
     </div>
   );
