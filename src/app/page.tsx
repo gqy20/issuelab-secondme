@@ -5,24 +5,20 @@ import { UserProfile } from "@/components/UserProfile";
 export default function Home() {
   return (
     <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
-      <main className="mx-auto w-full max-w-[1520px] space-y-4">
-        <header className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[linear-gradient(120deg,rgba(9,26,46,0.92)_0%,rgba(12,33,58,0.84)_50%,rgba(15,40,68,0.84)_100%)] px-5 py-4 shadow-[var(--shadow-soft)] backdrop-blur-xl md:px-7 md:py-5">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
+      <main className="mx-auto w-full max-w-[1520px]">
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
+          <aside className="space-y-4">
+            <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[linear-gradient(120deg,rgba(9,26,46,0.92)_0%,rgba(12,33,58,0.84)_50%,rgba(15,40,68,0.84)_100%)] p-5 shadow-[var(--shadow-soft)] backdrop-blur-xl">
               <p className="font-display text-xs font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">IssueLab x SecondMe</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">学术道路探索台</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-muted)] md:text-base">
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">学术道路探索台</h1>
+              <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
                 以同一问题并行驱动三条推演路径，压缩探索时间，输出可执行结论。
               </p>
+              <p className="mt-3 inline-flex items-center rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[#d7f0ff]">
+                Research Control Room
+              </p>
             </div>
-            <p className="inline-flex items-center rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[#d7f0ff]">
-              Research Control Room
-            </p>
-          </div>
-        </header>
 
-        <section className="grid grid-cols-1 gap-4 lg:grid-cols-[288px_1fr]">
-          <aside className="space-y-4">
             <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)] backdrop-blur-xl">
               <LoginButton />
             </div>
