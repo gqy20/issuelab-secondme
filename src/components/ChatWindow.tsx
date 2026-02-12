@@ -4,6 +4,23 @@ import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 
 type ChatItem = { role: "user" | "assistant"; content: string };
 type SseEvent = { event: string; data: string };
+type PathKey = "radical" | "conservative" | "cross_domain";
+type PathReport = {
+  path: PathKey;
+  hypothesis?: string;
+  why?: string;
+  next_steps?: string[];
+  test_plan?: string;
+  risk_guardrail?: string;
+  error?: string;
+};
+type Synthesis = {
+  summary?: string;
+  recommendation?: string;
+};
+type Evaluation = {
+  score?: number;
+};
 
 function parseSseBlock(block: string): SseEvent | null {
   const lines = block.split(/\r?\n/);
@@ -26,6 +43,10 @@ export function ChatWindow() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
+  const [pathStatus, setPathStatus] = useState<string>("idle");
+  const [pathReports, setPathReports] = useState<Partial<Record<PathKey, PathReport>>>({});
+  const [synthesis, setSynthesis] = useState<Synthesis | null>(null);
+  const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [messages, setMessages] = useState<ChatItem[]>([
     {
       role: "assistant",
@@ -59,6 +80,10 @@ export function ChatWindow() {
 
     setInput("");
     setSending(true);
+    setPathStatus("idle");
+    setPathReports({});
+    setSynthesis(null);
+    setEvaluation(null);
     setMessages((prev) => [
       ...prev,
       { role: "user", content: message },
@@ -125,6 +150,41 @@ export function ChatWindow() {
             if (parsed.event === "done") {
               continue;
             }
+
+            if (parsed.event === "path_status") {
+              if (typeof (payload as { status?: string }).status === "string") {
+                setPathStatus((payload as { status: string }).status);
+              }
+              continue;
+            }
+
+            if (parsed.event === "path_report") {
+              const reportPayload = payload as {
+                path?: PathKey;
+                report?: PathReport;
+                error?: string;
+              };
+              const path = reportPayload.path;
+              if (!path) continue;
+              setPathReports((prev) => ({
+                ...prev,
+                [path]: reportPayload.report ?? {
+                  path,
+                  error: reportPayload.error,
+                },
+              }));
+              continue;
+            }
+
+            if (parsed.event === "synthesis") {
+              setSynthesis(payload as Synthesis);
+              continue;
+            }
+
+            if (parsed.event === "evaluation") {
+              setEvaluation(payload as Evaluation);
+              continue;
+            }
           } catch {
             // Ignore malformed local SSE blocks.
           }
@@ -177,6 +237,42 @@ export function ChatWindow() {
         ))}
       </div>
 
+      <div className="mt-3 rounded-xl border border-[var(--border)] bg-white p-3 text-xs text-[var(--text-muted)]">
+        <div className="flex items-center justify-between">
+          <span className="font-medium text-[var(--foreground)]">三路径系统智能体</span>
+          <span>状态: {pathStatus}</span>
+        </div>
+        <div className="mt-2 space-y-1">
+          {(["radical", "conservative", "cross_domain"] as PathKey[]).map((key) => {
+            const report = pathReports[key];
+            return (
+              <div key={key}>
+                <span className="font-medium text-[var(--foreground)]">{key}: </span>
+                <span>
+                  {report?.error
+                    ? `失败 - ${report.error}`
+                    : report?.hypothesis
+                      ? report.hypothesis
+                      : "等待结果..."}
+                </span>
+              </div>
+            );
+          })}
+          {synthesis?.summary ? (
+            <div>
+              <span className="font-medium text-[var(--foreground)]">综合建议: </span>
+              <span>{synthesis.summary}</span>
+            </div>
+          ) : null}
+          {typeof evaluation?.score === "number" ? (
+            <div>
+              <span className="font-medium text-[var(--foreground)]">评估分: </span>
+              <span>{evaluation.score}</span>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
       <form ref={formRef} onSubmit={onSubmit} className="mt-3 flex gap-2">
         <label htmlFor="chat-input" className="sr-only">
           输入消息
@@ -204,4 +300,3 @@ export function ChatWindow() {
     </div>
   );
 }
-

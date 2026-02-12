@@ -18,6 +18,7 @@ model User {
   profile        ProfileSnapshot?
   chatSessions   ChatSession[]
   notes          UserNote[]
+  tasks          Task[]
 
   @@map("users")
 }
@@ -67,8 +68,105 @@ model UserNote {
   @@map("user_notes")
 }
 
+model Task {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  title     String
+  input     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs      Run[]
+
+  @@map("tasks")
+}
+
+model Run {
+  id        String    @id @default(cuid())
+  taskId    String    @map("task_id")
+  status    RunStatus @default(pending)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  pathRuns  PathRun[]
+  artifact  Artifact?
+  eval      Evaluation?
+
+  @@map("runs")
+}
+
+model PathRun {
+  id        String   @id @default(cuid())
+  runId     String   @map("run_id")
+  path      PathType
+  status    String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  run       Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  turns     Turn[]
+  report    PathReport?
+
+  @@unique([runId, path])
+  @@map("path_runs")
+}
+
+model Turn {
+  id         String   @id @default(cuid())
+  pathRunId  String   @map("path_run_id")
+  round      Int
+  role       String
+  content    String
+  jsonOutput String?  @map("json_output")
+  createdAt  DateTime @default(now()) @map("created_at")
+  pathRun    PathRun  @relation(fields: [pathRunId], references: [id], onDelete: Cascade)
+
+  @@map("turns")
+}
+
+model PathReport {
+  id        String   @id @default(cuid())
+  pathRunId String   @unique @map("path_run_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  pathRun   PathRun  @relation(fields: [pathRunId], references: [id], onDelete: Cascade)
+
+  @@map("path_reports")
+}
+
+model Artifact {
+  id        String   @id @default(cuid())
+  runId     String   @unique @map("run_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  run       Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@map("artifacts")
+}
+
+model Evaluation {
+  id        String   @id @default(cuid())
+  runId     String   @unique @map("run_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  run       Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@map("evaluations")
+}
+
 enum MessageRole {
   user
   assistant
 }
 
+enum RunStatus {
+  pending
+  running
+  done
+  failed
+}
+
+enum PathType {
+  radical
+  conservative
+  cross_domain
+}

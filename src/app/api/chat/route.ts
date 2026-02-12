@@ -2,11 +2,24 @@ import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { secondMeRequest } from "@/lib/secondme";
+import {
+  callCoach,
+  callEvaluate,
+  callSynthesize,
+  type JsonRecord,
+  type PathType,
+} from "@/lib/system-agents/runtime";
+
+export const runtime = "nodejs";
 
 type ChatBody = {
   message?: string;
   sessionId?: string;
 };
+
+function shouldRunSystemAgents() {
+  return process.env.SYSTEM_AGENT_ENABLED?.trim() !== "false";
+}
 
 export async function POST(request: Request) {
   const { accessToken, userId } = getSessionFromRequest(request);
@@ -64,6 +77,7 @@ export async function POST(request: Request) {
   let assistantText = "";
   let sessionId = session;
   let lineBuffer = "";
+  let systemAgentFailed = false;
 
   const emit = (event: string, payload: unknown) =>
     encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
@@ -129,6 +143,78 @@ export async function POST(request: Request) {
           data: { sessionId, role: "assistant", content: assistantText },
         });
 
+        if (shouldRunSystemAgents()) {
+          const paths: PathType[] = ["radical", "conservative", "cross_domain"];
+          const reports: Partial<Record<PathType, JsonRecord>> = {};
+
+          controller.enqueue(emit("path_status", { status: "running" }));
+
+          await Promise.all(
+            paths.map(async (path) => {
+              controller.enqueue(emit("path_status", { path, status: "running" }));
+              try {
+                const report = await callCoach(path, {
+                  taskInput: message,
+                  round: 1,
+                  context: `secondme_reply: ${assistantText}`,
+                });
+                reports[path] = report;
+                controller.enqueue(emit("path_report", { path, report }));
+                controller.enqueue(emit("path_status", { path, status: "done" }));
+              } catch (error) {
+                systemAgentFailed = true;
+                controller.enqueue(
+                  emit("path_report", {
+                    path,
+                    error:
+                      error instanceof Error ? error.message : "系统路径智能体调用失败",
+                  }),
+                );
+                controller.enqueue(emit("path_status", { path, status: "failed" }));
+              }
+            }),
+          );
+
+          const radical = reports.radical;
+          const conservative = reports.conservative;
+          const crossDomain = reports.cross_domain;
+
+          if (radical && conservative && crossDomain) {
+            try {
+              const synthesis = await callSynthesize({
+                radical,
+                conservative,
+                cross_domain: crossDomain,
+              });
+              controller.enqueue(emit("synthesis", synthesis));
+
+              const evaluation = await callEvaluate({
+                radical,
+                conservative,
+                cross_domain: crossDomain,
+                synthesis,
+              });
+              controller.enqueue(emit("evaluation", evaluation));
+            } catch (error) {
+              systemAgentFailed = true;
+              controller.enqueue(
+                emit("error", {
+                  message:
+                    error instanceof Error
+                      ? error.message
+                      : "系统智能体综合/评估阶段失败",
+                }),
+              );
+            }
+          }
+
+          controller.enqueue(
+            emit("path_status", {
+              status: systemAgentFailed ? "partial_failed" : "done",
+            }),
+          );
+        }
+
         controller.enqueue(emit("done", { sessionId }));
       } catch (error) {
         controller.enqueue(
@@ -151,4 +237,3 @@ export async function POST(request: Request) {
     },
   });
 }
-
