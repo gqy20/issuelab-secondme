@@ -57,8 +57,8 @@ export async function GET(request: Request) {
 
   const tokenResponse = await fetch(tokenEndpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
       grant_type: "authorization_code",
       code,
       client_id: clientId,
