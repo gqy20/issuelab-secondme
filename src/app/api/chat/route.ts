@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { secondMeRequest } from "@/lib/secondme";
@@ -113,13 +113,13 @@ async function requestSecondMeReply(params: {
 export async function POST(request: Request) {
   const { accessToken, userId } = getSessionFromRequest(request);
   if (!accessToken || !userId) {
-    return NextResponse.json({ code: 401, message: "未登录" }, { status: 401 });
+    return NextResponse.json({ code: 401, message: "Unauthorized" }, { status: 401 });
   }
 
   const body = (await request.json()) as ChatBody;
   const message = body.message?.trim();
   if (!message) {
-    return NextResponse.json({ code: 400, message: "消息不能为空" }, { status: 400 });
+    return NextResponse.json({ code: 400, message: "Message is required" }, { status: 400 });
   }
 
   const user = await prisma.user.findUnique({
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
     select: { id: true },
   });
   if (!user?.id) {
-    return NextResponse.json({ code: 404, message: "用户不存在" }, { status: 404 });
+    return NextResponse.json({ code: 404, message: "User not found" }, { status: 404 });
   }
 
   const session =
@@ -225,131 +225,132 @@ export async function POST(request: Request) {
         for (let round = 1; round <= debateRounds; round += 1) {
           controller.enqueue(emit("debate_status", { round, status: "running" }));
 
-          for (const path of paths) {
-            if (failedPaths.has(path)) continue;
+          const activePaths = paths.filter((path) => !failedPaths.has(path));
+          await Promise.all(
+            activePaths.map(async (path) => {
+              try {
+                const coach = await callCoach(path, {
+                  taskInput: message,
+                  round,
+                  context: stringifyJson({
+                    constraint: constraints[path],
+                    history: pathTurns[path].slice(-3),
+                  }),
+                });
 
-            try {
-              const coach = await callCoach(path, {
-                taskInput: message,
-                round,
-                context: stringifyJson({
-                  constraint: constraints[path],
-                  history: pathTurns[path].slice(-3),
-                }),
-              });
+                const secondmePrompt = [
+                  `User question: ${message}`,
+                  `Path: ${path}`,
+                  `Round: ${round}`,
+                  `Coach hypothesis: ${coach.hypothesis}`,
+                  `Coach reason: ${coach.why}`,
+                  `Round constraint: ${constraints[path] ?? "none"}`,
+                  "Respond with your stance, strongest concern, and one actionable step.",
+                ].join("\n");
 
-              const secondmePrompt = [
-                `User question: ${message}`,
-                `Path: ${path}`,
-                `Round: ${round}`,
-                `Coach hypothesis: ${coach.hypothesis}`,
-                `Coach reason: ${coach.why}`,
-                `Round constraint: ${constraints[path] ?? "none"}`,
-                "Respond with your stance, strongest concern, and one actionable step.",
-              ].join("\n");
+                const secondme = await requestSecondMeReply({
+                  accessToken,
+                  message: secondmePrompt,
+                  sessionId: pathSessions[path],
+                });
+                if (secondme.sessionId) {
+                  pathSessions[path] = secondme.sessionId;
+                }
 
-              const secondme = await requestSecondMeReply({
-                accessToken,
-                message: secondmePrompt,
-                sessionId: pathSessions[path],
-              });
-              if (secondme.sessionId) {
-                pathSessions[path] = secondme.sessionId;
-              }
-
-              const judge = await callJudge({
-                path,
-                round,
-                taskInput: message,
-                coach,
-                secondme: secondme.text,
-                history: pathTurns[path].map((item) => ({
-                  round: item.round,
-                  coach: item.coach,
-                  secondme: item.secondme,
-                  judge: item.judge,
-                })),
-                constraint: constraints[path],
-              });
-
-              constraints[path] = judge.next_constraint;
-              pathTurns[path].push({
-                round,
-                coach,
-                secondme: secondme.text,
-                judge,
-              });
-
-              controller.enqueue(
-                emit("debate_round", {
+                const judge = await callJudge({
                   path,
+                  round,
+                  taskInput: message,
+                  coach,
+                  secondme: secondme.text,
+                  history: pathTurns[path].map((item) => ({
+                    round: item.round,
+                    coach: item.coach,
+                    secondme: item.secondme,
+                    judge: item.judge,
+                  })),
+                  constraint: constraints[path],
+                });
+
+                constraints[path] = judge.next_constraint;
+                pathTurns[path].push({
                   round,
                   coach,
                   secondme: secondme.text,
-                }),
-              );
-              controller.enqueue(
-                emit("judge_round", {
-                  path,
-                  round,
                   judge,
-                }),
-              );
+                });
 
-              const pathRunId = pathRunIdMap[path];
-              if (pathRunId) {
-                try {
-                  await prisma.$transaction([
-                    prisma.turn.create({
-                      data: {
-                        pathRunId,
-                        round,
-                        role: "coach",
-                        content: String(coach.hypothesis ?? ""),
-                        jsonOutput: stringifyJson(coach),
-                      },
-                    }),
-                    prisma.turn.create({
-                      data: {
-                        pathRunId,
-                        round,
-                        role: "secondme",
-                        content: secondme.text,
-                      },
-                    }),
-                    prisma.turn.create({
-                      data: {
-                        pathRunId,
-                        round,
-                        role: "judge",
-                        content: String(judge.critical_gap ?? ""),
-                        jsonOutput: stringifyJson(judge),
-                      },
-                    }),
-                  ]);
-                } catch {
-                  // Ignore persistence failure.
+                controller.enqueue(
+                  emit("debate_round", {
+                    path,
+                    round,
+                    coach,
+                    secondme: secondme.text,
+                  }),
+                );
+                controller.enqueue(
+                  emit("judge_round", {
+                    path,
+                    round,
+                    judge,
+                  }),
+                );
+
+                const pathRunId = pathRunIdMap[path];
+                if (pathRunId) {
+                  try {
+                    await prisma.$transaction([
+                      prisma.turn.create({
+                        data: {
+                          pathRunId,
+                          round,
+                          role: "coach",
+                          content: String(coach.hypothesis ?? ""),
+                          jsonOutput: stringifyJson(coach),
+                        },
+                      }),
+                      prisma.turn.create({
+                        data: {
+                          pathRunId,
+                          round,
+                          role: "secondme",
+                          content: secondme.text,
+                        },
+                      }),
+                      prisma.turn.create({
+                        data: {
+                          pathRunId,
+                          round,
+                          role: "judge",
+                          content: String(judge.critical_gap ?? ""),
+                          jsonOutput: stringifyJson(judge),
+                        },
+                      }),
+                    ]);
+                  } catch {
+                    // Ignore persistence failure.
+                  }
                 }
+              } catch (error) {
+                systemAgentFailed = true;
+                failedPaths.add(path);
+                controller.enqueue(
+                  emit("debate_round", {
+                    path,
+                    round,
+                    error: error instanceof Error ? error.message : "Debate round failed",
+                  }),
+                );
+                controller.enqueue(
+                  emit("judge_round", {
+                    path,
+                    round,
+                    error: error instanceof Error ? error.message : "Judge failed",
+                  }),
+                );
               }
-            } catch (error) {
-              systemAgentFailed = true;
-              failedPaths.add(path);
-              controller.enqueue(
-                emit("debate_round", {
-                  path,
-                  round,
-                  error: error instanceof Error ? error.message : "博弈轮执行失败",
-                }),
-              );
-              controller.enqueue(
-                emit("judge_round", {
-                  path,
-                  round,
-                  error: error instanceof Error ? error.message : "裁判执行失败",
-                }),
-              );
-            }
-          }
+            }),
+          );
 
           controller.enqueue(emit("debate_status", { round, status: "done" }));
         }
@@ -514,7 +515,7 @@ export async function POST(request: Request) {
       } catch (error) {
         controller.enqueue(
           emit("error", {
-            message: error instanceof Error ? error.message : "服务执行失败，请稍后重试。",
+            message: error instanceof Error ? error.message : "Service failed, please try again later.",
           }),
         );
       } finally {
@@ -531,3 +532,4 @@ export async function POST(request: Request) {
     },
   });
 }
+

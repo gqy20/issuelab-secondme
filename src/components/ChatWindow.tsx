@@ -5,6 +5,7 @@ import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 type ChatItem = { role: "user" | "assistant"; content: string };
 type SseEvent = { event: string; data: string };
 type PathKey = "radical" | "conservative" | "cross_domain";
+type StatusValue = "idle" | "running" | "done" | "failed" | "partial_failed";
 
 type PathReport = {
   path: PathKey;
@@ -55,6 +56,18 @@ type StageMeta = {
   progress: number;
   tone: "neutral" | "running" | "done" | "warn";
 };
+
+const DEFAULT_ASSISTANT_TEXT = "\u6b22\u8fce\u8fdb\u5165\u591a\u8def\u5f84\u535a\u5f08\u6a21\u5f0f\uff0c\u8f93\u5165\u4f60\u7684\u95ee\u9898\u5f00\u59cb\u5206\u6790\u3002";
+const RUNNING_ASSISTANT_TEXT = "\u6b63\u5728\u8fdb\u884c\u591a\u8f6e\u535a\u5f08\uff0c\u8bf7\u7a0d\u5019...";
+const REQUEST_FAILED_TEXT = "\u8bf7\u6c42\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
+const EXEC_FAILED_TEXT = "\u6267\u884c\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002";
+const NETWORK_FAILED_TEXT = "\u7f51\u7edc\u5f02\u5e38\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
+const MAX_ROUND_LOGS = 120;
+
+function pushCapped<T>(list: T[], item: T, max = MAX_ROUND_LOGS): T[] {
+  if (list.length < max) return [...list, item];
+  return [...list.slice(list.length - max + 1), item];
+}
 
 function parseSseBlock(block: string): SseEvent | null {
   const lines = block.split(/\r?\n/);
@@ -126,18 +139,20 @@ export function ChatWindow() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
-  const [pathStatus, setPathStatus] = useState("idle");
-  const [debateStatus, setDebateStatus] = useState("idle");
+  const [pathStatus, setPathStatus] = useState<StatusValue>("idle");
+  const [perPathStatus, setPerPathStatus] = useState<Record<PathKey, StatusValue>>({
+    radical: "idle",
+    conservative: "idle",
+    cross_domain: "idle",
+  });
+  const [debateStatus, setDebateStatus] = useState<StatusValue>("idle");
   const [pathReports, setPathReports] = useState<Partial<Record<PathKey, PathReport>>>({});
   const [synthesis, setSynthesis] = useState<Synthesis | null>(null);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [debateRounds, setDebateRounds] = useState<DebateRoundItem[]>([]);
   const [judgeRounds, setJudgeRounds] = useState<JudgeRoundItem[]>([]);
   const [messages, setMessages] = useState<ChatItem[]>([
-    {
-      role: "assistant",
-      content: "\u6b22\u8fce\u8fdb\u5165\u8f68\u8ff9\u8ba8\u8bba\u533a\uff0c\u8f93\u5165\u95ee\u9898\u5373\u53ef\u5f00\u59cb\u3002",
-    },
+    { role: "assistant", content: DEFAULT_ASSISTANT_TEXT },
   ]);
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -165,6 +180,21 @@ export function ChatWindow() {
     });
   };
 
+  const resetDebateState = () => {
+    setPathStatus("running");
+    setPerPathStatus({
+      radical: "running",
+      conservative: "running",
+      cross_domain: "running",
+    });
+    setDebateStatus("idle");
+    setPathReports({});
+    setSynthesis(null);
+    setEvaluation(null);
+    setDebateRounds([]);
+    setJudgeRounds([]);
+  };
+
   const submitMessage = async (rawMessage: string) => {
     if (sending) return;
     const message = rawMessage.trim();
@@ -172,18 +202,8 @@ export function ChatWindow() {
 
     setInput("");
     setSending(true);
-    setPathStatus("running");
-    setDebateStatus("idle");
-    setPathReports({});
-    setSynthesis(null);
-    setEvaluation(null);
-    setDebateRounds([]);
-    setJudgeRounds([]);
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content: message },
-      { role: "assistant", content: "\u6b63\u5728\u8fdb\u884c\u8def\u5f84\u751f\u6210\u4e0e\u8ba8\u8bba\uff0c\u8bf7\u7a0d\u5019..." },
-    ]);
+    resetDebateState();
+    setMessages((prev) => [...prev, { role: "user", content: message }, { role: "assistant", content: RUNNING_ASSISTANT_TEXT }]);
 
     try {
       const response = await fetch("/api/chat", {
@@ -194,11 +214,7 @@ export function ChatWindow() {
 
       if (!response.ok || !response.body) {
         const payload = await response.json().catch(() => ({}));
-        replaceLastAssistant(
-          typeof payload?.message === "string"
-            ? payload.message
-            : "\u8bf7\u6c42\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002",
-        );
+        replaceLastAssistant(typeof payload?.message === "string" ? payload.message : REQUEST_FAILED_TEXT);
         return;
       }
 
@@ -226,20 +242,33 @@ export function ChatWindow() {
               continue;
             }
 
-            if (parsed.event === "path_status" && typeof payload.status === "string") {
-              setPathStatus(payload.status);
+            if (parsed.event === "path_status") {
+              if (
+                typeof payload.path === "string" &&
+                PATH_KEYS.includes(payload.path as PathKey) &&
+                typeof payload.status === "string"
+              ) {
+                setPerPathStatus((prev) => ({
+                  ...prev,
+                  [payload.path as PathKey]: payload.status as StatusValue,
+                }));
+                continue;
+              }
+              if (typeof payload.status === "string") {
+                setPathStatus(payload.status as StatusValue);
+              }
               continue;
             }
 
             if (parsed.event === "debate_status" && typeof payload.status === "string") {
-              setDebateStatus(payload.status);
+              setDebateStatus(payload.status as StatusValue);
               continue;
             }
 
             if (parsed.event === "debate_round") {
               const item = payload as unknown as DebateRoundItem;
               if (item.path && typeof item.round === "number") {
-                setDebateRounds((prev) => [...prev, item]);
+                setDebateRounds((prev) => pushCapped(prev, item));
               }
               continue;
             }
@@ -247,7 +276,7 @@ export function ChatWindow() {
             if (parsed.event === "judge_round") {
               const item = payload as unknown as JudgeRoundItem;
               if (item.path && typeof item.round === "number") {
-                setJudgeRounds((prev) => [...prev, item]);
+                setJudgeRounds((prev) => pushCapped(prev, item));
               }
               continue;
             }
@@ -255,9 +284,10 @@ export function ChatWindow() {
             if (parsed.event === "path_report") {
               const item = payload as unknown as { path?: PathKey; report?: PathReport; error?: string };
               if (item.path) {
+                const path = item.path as PathKey;
                 setPathReports((prev) => ({
                   ...prev,
-                  [item.path as PathKey]: item.report ?? { path: item.path as PathKey, error: item.error },
+                  [path]: item.report ?? { path, error: item.error },
                 }));
               }
               continue;
@@ -279,11 +309,7 @@ export function ChatWindow() {
             }
 
             if (parsed.event === "error") {
-              replaceLastAssistant(
-                typeof payload.message === "string"
-                  ? payload.message
-                  : "\u6267\u884c\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002",
-              );
+              replaceLastAssistant(typeof payload.message === "string" ? payload.message : EXEC_FAILED_TEXT);
               continue;
             }
 
@@ -291,12 +317,12 @@ export function ChatWindow() {
               appendToLastAssistant(payload.text);
             }
           } catch {
-            // Ignore malformed payload blocks
+            // Ignore malformed payload.
           }
         }
       }
     } catch {
-      replaceLastAssistant("\u7f51\u7edc\u5f02\u5e38\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002");
+      replaceLastAssistant(NETWORK_FAILED_TEXT);
     } finally {
       setSending(false);
     }
@@ -327,12 +353,8 @@ export function ChatWindow() {
   const pathSummaries = PATH_KEYS.map((path) => {
     const report = pathReports[path];
     const summary = report?.final_hypothesis || report?.hypothesis;
-    if (report?.error) {
-      return { path, text: `\u5931\u8d25\uff1a${report.error}` };
-    }
-    if (summary) {
-      return { path, text: summary };
-    }
+    if (report?.error) return { path, text: `\u5931\u8d25\uff1a${report.error}` };
+    if (summary) return { path, text: summary };
     return { path, text: "\u6682\u65e0\u7ed3\u679c" };
   });
 
@@ -340,14 +362,16 @@ export function ChatWindow() {
     if (sending) return;
     setInput(prompt);
   };
+
   const retryFailedPaths = async () => {
     if (sending || failedPaths.length === 0) return;
-    const target = failedPaths.map((path) => PATH_LABELS[path]).join("ã€");
-    await submitMessage(`è¯·ä»…é‡è¯•ä»¥ä¸‹å¤±è´¥è·¯å¾„ï¼š${target}ï¼Œå¹¶ä¿æŒå…¶ä½™è·¯å¾„ç»“æœä¸å˜ã€‚`);
+    const target = failedPaths.map((path) => PATH_LABELS[path]).join("¡¢");
+    await submitMessage(`Çë½öÖØÊÔÒÔÏÂÊ§°ÜÂ·¾¶£º${target}£¬²¢±£³ÖÆäÓàÂ·¾¶½á¹û²»±ä¡£`);
   };
+
   const regenerateComparison = async () => {
     if (sending) return;
-    await submitMessage("è¯·åŸºäºå½“å‰ä¼šè¯ç»“æœï¼Œé‡æ–°ç”Ÿæˆä¸‰è·¯å¾„å·®å¼‚å¯¹æ¯”ï¼ˆç»“è®ºã€é£é™©ã€è¡ŒåŠ¨å»ºè®®ï¼‰å¹¶ç»™å‡ºæ’åºã€‚");
+    await submitMessage("Çë»ùÓÚµ±Ç°»á»°½á¹û£¬ÖØĞÂÉú³ÉÈıÂ·¾¶²îÒì¶Ô±È£¨½áÂÛ¡¢·çÏÕ¡¢ĞĞ¶¯½¨Òé£©²¢¸ø³öÅÅĞò¡£");
   };
 
   return (
@@ -355,41 +379,36 @@ export function ChatWindow() {
       <aside className="overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3 text-sm">
         <div className="space-y-3">
           <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
-            <p className="text-xs font-medium text-[var(--text-muted)]">{"\u8fdb\u5ea6\u603b\u89c8"}</p>
+            <p className="text-xs font-medium text-[var(--text-muted)]">½ø¶È×ÜÀÀ</p>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
               <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${overallProgress}%` }} />
             </div>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">{`\u5f53\u524d\u8fdb\u5ea6 ${overallProgress}%`}</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">{`µ±Ç°½ø¶È ${overallProgress}%`}</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(pathStage.tone)}`}>
-                {"\u8def\u5f84\uff1a"}
-                {pathStage.label}
-              </span>
-              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(debateStage.tone)}`}>
-                {"\u8f6e\u6b21\uff1a"}
-                {debateStage.label}
-              </span>
+              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(pathStage.tone)}`}>Â·¾¶£º{pathStage.label}</span>
+              <span className={`rounded-full border px-2 py-1 text-xs ${badgeClass(debateStage.tone)}`}>ÂÖ´Î£º{debateStage.label}</span>
             </div>
             <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">{pathStage.detail}</p>
             <p className="text-xs leading-5 text-[var(--text-muted)]">{debateStage.detail}</p>
           </div>
 
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{"\u8def\u5f84\u7ed3\u679c\u6458\u8981"}</p>
+            <p className="text-xs text-[var(--text-muted)]">Â·¾¶Ö´ĞĞ×´Ì¬</p>
+            {PATH_KEYS.map((path) => (
+              <p key={`status-${path}`} className="text-xs">{PATH_LABELS[path]}: {perPathStatus[path]}</p>
+            ))}
+          </div>
+
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Â·¾¶½á¹ûÕªÒª</p>
             {PATH_KEYS.map((path) => {
               const report = pathReports[path];
               const summary = report?.final_hypothesis || report?.hypothesis;
               return (
                 <div key={path} className="mt-2 rounded-md border border-[var(--border)] bg-white p-2.5">
                   <p className="text-xs font-medium text-[var(--text-muted)]">{PATH_LABELS[path]}</p>
-                  <p className="mt-1 line-clamp-2 text-sm">
-                    {report?.error
-                      ? `\u5931\u8d25\uff1a${report.error}`
-                      : summary || "\u7b49\u5f85\u7ed3\u679c..."}
-                  </p>
-                  {typeof report?.confidence === "number" ? (
-                    <p className="mt-1 text-xs text-[var(--text-muted)]">{`\u7f6e\u4fe1\u5ea6 ${report.confidence}`}</p>
-                  ) : null}
+                  <p className="mt-1 line-clamp-2 text-sm">{report?.error ? `Ê§°Ü£º${report.error}` : summary || "µÈ´ı½á¹û..."}</p>
+                  {typeof report?.confidence === "number" ? <p className="mt-1 text-xs text-[var(--text-muted)]">{`ÖÃĞÅ¶È ${report.confidence}`}</p> : null}
                 </div>
               );
             })}
@@ -397,14 +416,15 @@ export function ChatWindow() {
 
           {synthesis?.summary ? (
             <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{"\u7efc\u5408\u7ed3\u8bba"}</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">×ÛºÏ½áÂÛ</p>
               <p className="mt-1 text-sm leading-6">{synthesis.summary}</p>
+              {synthesis.recommendation ? <p className="mt-1 text-xs text-[var(--text-muted)]">½¨Òé£º{synthesis.recommendation}</p> : null}
             </div>
           ) : null}
 
           {typeof evaluation?.score === "number" ? (
             <div className="rounded-md border border-[var(--border)] bg-white p-2.5">
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{"\u8bc4\u4f30\u5206"}</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">ÆÀ¹À·Ö</p>
               <p className="mt-1 text-sm">{evaluation.score}</p>
             </div>
           ) : null}
@@ -414,18 +434,16 @@ export function ChatWindow() {
       <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
         <div className="border-b border-[var(--border)] bg-white px-3 py-2.5">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold tracking-tight">{"\u8f68\u8ff9\u5bf9\u8bdd"}</h2>
+            <h2 className="text-sm font-semibold tracking-tight">¹ì¼£¶Ô»°</h2>
             <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs text-[var(--text-muted)]">
-              {sessionId ? `\u4f1a\u8bdd ${sessionId.slice(0, 8)}...` : "\u65b0\u4f1a\u8bdd"}
+              {sessionId ? `»á»° ${sessionId.slice(0, 8)}...` : "ĞÂ»á»°"}
             </span>
           </div>
         </div>
 
         <div className="border-b border-[var(--border)] bg-white px-3 py-2.5">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
-              {"\u8def\u5f84\u5dee\u5f02\u5bf9\u6bd4"}
-            </p>
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Â·¾¶²îÒì¶Ô±È</p>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -433,7 +451,7 @@ export function ChatWindow() {
                 disabled={sending || failedPaths.length === 0}
                 className="rounded-md border border-[var(--danger)] bg-[var(--danger-soft)] px-2.5 py-1 text-xs font-medium text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {"\u91cd\u8bd5\u5931\u8d25\u8def\u5f84"}
+                ÖØÊÔÊ§°ÜÂ·¾¶
               </button>
               <button
                 type="button"
@@ -441,22 +459,21 @@ export function ChatWindow() {
                 disabled={sending}
                 className="rounded-md border border-[var(--accent)] bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {"\u91cd\u65b0\u751f\u6210\u5bf9\u6bd4"}
+                ÖØĞÂÉú³É¶Ô±È
               </button>
             </div>
           </div>
+
           <div className="mt-2 overflow-hidden rounded-md border border-[var(--border)]">
             <div className="grid grid-cols-[120px_1fr_1fr_1fr] bg-[var(--surface-2)] text-xs font-medium text-[var(--text-muted)]">
-              <div className="border-r border-[var(--border)] px-2 py-1.5">{"\u7ef4\u5ea6"}</div>
+              <div className="border-r border-[var(--border)] px-2 py-1.5">Î¬¶È</div>
               {PATH_KEYS.map((path) => (
-                <div key={`head-${path}`} className="border-r border-[var(--border)] px-2 py-1.5 last:border-r-0">
-                  {PATH_LABELS[path]}
-                </div>
+                <div key={`head-${path}`} className="border-r border-[var(--border)] px-2 py-1.5 last:border-r-0">{PATH_LABELS[path]}</div>
               ))}
             </div>
 
             <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">{"\u7ed3\u8bba\u5dee\u5f02"}</div>
+              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">½áÂÛ²îÒì</div>
               {pathSummaries.map((item) => (
                 <div key={`summary-${item.path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
                   <p className="line-clamp-2">{item.text}</p>
@@ -465,11 +482,11 @@ export function ChatWindow() {
             </div>
 
             <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">{"\u98ce\u9669\u5dee\u5f02"}</div>
+              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">·çÏÕ²îÒì</div>
               {PATH_KEYS.map((path) => {
                 const judgeGap = latestJudgeByPath[path]?.judge?.critical_gap;
                 const err = pathReports[path]?.error;
-                const text = err ? `\u5931\u8d25\uff1a${err}` : judgeGap || "\u6682\u65e0\u98ce\u9669\u5dee\u5f02\u8bf4\u660e";
+                const text = err ? `Ê§°Ü£º${err}` : judgeGap || "ÔİÎŞ·çÏÕ²îÒìËµÃ÷";
                 return (
                   <div key={`risk-${path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
                     <p className="line-clamp-2">{text}</p>
@@ -479,12 +496,12 @@ export function ChatWindow() {
             </div>
 
             <div className="grid grid-cols-[120px_1fr_1fr_1fr] border-t border-[var(--border)] text-xs">
-              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">{"\u884c\u52a8\u5efa\u8bae"}</div>
+              <div className="border-r border-[var(--border)] bg-white px-2 py-2 font-medium">ĞĞ¶¯½¨Òé</div>
               {PATH_KEYS.map((path) => {
                 const action = latestJudgeByPath[path]?.judge?.next_constraint || latestDebateByPath[path]?.coach?.hypothesis;
                 return (
                   <div key={`action-${path}`} className="border-r border-[var(--border)] bg-white px-2 py-2 leading-5 last:border-r-0">
-                    <p className="line-clamp-2">{action || "\u6682\u65e0\u884c\u52a8\u5efa\u8bae"}</p>
+                    <p className="line-clamp-2">{action || "ÔİÎŞĞĞ¶¯½¨Òé"}</p>
                   </div>
                 );
               })}
@@ -521,13 +538,15 @@ export function ChatWindow() {
               </button>
             ))}
           </div>
+
           {failedPaths.length > 0 ? (
             <p className="mb-2 text-xs text-[var(--danger)]">
-              {`\u68c0\u6d4b\u5230 ${failedPaths.length} \u6761\u5931\u8d25\u8def\u5f84\uff0c\u53ef\u70b9\u51fb\u4e0a\u65b9\u201c\u91cd\u8bd5\u5931\u8d25\u8def\u5f84\u201d\u5feb\u901f\u6062\u590d\u3002`}
+              {`¼ì²âµ½ ${failedPaths.length} ÌõÊ§°ÜÂ·¾¶£¬¿Éµã»÷ÉÏ·½¡°ÖØÊÔÊ§°ÜÂ·¾¶¡±¿ìËÙ»Ö¸´¡£`}
             </p>
           ) : null}
+
           <div className="flex gap-2">
-            <label htmlFor="chat-input" className="sr-only">{"\u8f93\u5165\u6d88\u606f"}</label>
+            <label htmlFor="chat-input" className="sr-only">ÊäÈëÏûÏ¢</label>
             <textarea
               id="chat-input"
               value={input}
@@ -535,8 +554,8 @@ export function ChatWindow() {
               onKeyDown={onInputKeyDown}
               disabled={sending}
               rows={2}
-              aria-label={"\u804a\u5929\u8f93\u5165\u6846"}
-              placeholder={"\u4f8b\u5982\uff1a\u5982\u679c\u6211\u8d70\u8de8\u5b66\u79d1\u65b9\u5411\uff0c\u4e09\u5e74\u540e\u6700\u5173\u952e\u7684\u80fd\u529b\u5dee\u5f02\u662f\u4ec0\u4e48\uff1f"}
+              aria-label="ÁÄÌìÊäÈë¿ò"
+              placeholder="ÀıÈç£ºÈç¹ûÎÒ×ß¿çÑ§¿Æ·½Ïò£¬ÈıÄêºó×î¹Ø¼üµÄÄÜÁ¦²îÒìÊÇÊ²Ã´£¿"
               className="flex-1 resize-none rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
             />
             <button
@@ -545,13 +564,14 @@ export function ChatWindow() {
               aria-busy={sending}
               className="rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-sm font-medium text-white transition-all hover:-translate-y-px hover:shadow-[0_6px_14px_rgba(0,102,204,0.24)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
             >
-              {sending ? "\u751f\u6210\u4e2d..." : "\u53d1\u9001"}
+              {sending ? "Éú³ÉÖĞ..." : "·¢ËÍ"}
             </button>
           </div>
-          <p className="mt-2 text-xs text-[var(--text-muted)]">{"\u6309 Enter \u53d1\u9001\uff0cShift + Enter \u6362\u884c"}</p>
+
+          <p className="mt-2 text-xs text-[var(--text-muted)]">°´ Enter ·¢ËÍ£¬Shift + Enter »»ĞĞ</p>
           {(debateRounds.length > 0 || judgeRounds.length > 0) && (
             <p className="mt-1 text-xs text-[var(--text-muted)]">
-              {`\u5df2\u6536\u96c6\u8fa9\u8bba ${debateRounds.length} \u6761\uff0c\u88c1\u5224 ${judgeRounds.length} \u6761`}
+              {`ÒÑÊÕ¼¯±çÂÛ ${debateRounds.length} Ìõ£¬²ÃÅĞ ${judgeRounds.length} Ìõ`}
             </p>
           )}
         </form>

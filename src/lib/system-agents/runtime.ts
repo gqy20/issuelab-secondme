@@ -71,8 +71,16 @@ function asObject(value: unknown): JsonRecord | null {
 }
 
 function toStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string");
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+  if (typeof value === "string") {
+    return value
+      .split(/[\n,]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
 }
 
 function extractTextFromMessagePayload(payload: unknown) {
@@ -105,33 +113,57 @@ function extractJsonText(raw: string) {
   return cleaned;
 }
 
-async function runJsonTask<T extends JsonRecord>(params: {
+function sanitizeJsonText(raw: string) {
+  let text = raw.trim();
+  if (!text) return text;
+
+  // Remove BOM/control chars that occasionally break JSON.parse.
+  text = text.replace(/^\uFEFF/, "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+  // Remove trailing commas before } or ].
+  text = text.replace(/,\s*([}\]])/g, "$1");
+  return text;
+}
+
+function parseJsonObject(raw: string) {
+  const jsonText = sanitizeJsonText(extractJsonText(raw));
+  const parsed = JSON.parse(jsonText) as unknown;
+  const object = asObject(parsed);
+  if (!object) {
+    throw new Error("Model returned non-object JSON");
+  }
+  return object;
+}
+
+function clampScore(value: unknown) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0;
+  if (num < 0) return 0;
+  if (num > 100) return 100;
+  return Math.round(num);
+}
+
+async function callMessagesApi(params: {
   systemPrompt: string;
   userPrompt: string;
-  timeoutMs?: number;
-}): Promise<T> {
-  const { systemPrompt, userPrompt, timeoutMs = DEFAULT_TIMEOUT_MS } = params;
-  const token = getAuthToken();
-  if (!token) {
-    throw new Error("Missing ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY");
-  }
-
+  token: string;
+  timeoutMs: number;
+}) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), params.timeoutMs);
 
   try {
     const response = await fetch(`${getBaseUrl()}/v1/messages`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": token,
+        "x-api-key": params.token,
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
         model: getModelName(),
         max_tokens: getMaxTokens(),
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
+        system: params.systemPrompt,
+        messages: [{ role: "user", content: params.userPrompt }],
         temperature: 0.2,
       }),
       cache: "no-store",
@@ -148,14 +180,7 @@ async function runJsonTask<T extends JsonRecord>(params: {
       throw new Error(`Messages API failed: ${String(err)}`);
     }
 
-    const text = extractTextFromMessagePayload(payload);
-    const jsonText = extractJsonText(text);
-    const parsed = JSON.parse(jsonText) as unknown;
-    const object = asObject(parsed);
-    if (!object) {
-      throw new Error("Model returned non-object JSON");
-    }
-    return object as T;
+    return extractTextFromMessagePayload(payload);
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new Error("Messages API timeout");
@@ -164,6 +189,46 @@ async function runJsonTask<T extends JsonRecord>(params: {
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function runJsonTask<T extends JsonRecord>(params: {
+  systemPrompt: string;
+  userPrompt: string;
+  timeoutMs?: number;
+}): Promise<T> {
+  const { systemPrompt, userPrompt, timeoutMs = DEFAULT_TIMEOUT_MS } = params;
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error("Missing ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY");
+  }
+
+  let firstError: Error | null = null;
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const retryHint =
+      attempt === 1
+        ? ""
+        : "\n\nIMPORTANT: Previous output was invalid JSON. Return exactly one valid JSON object with double-quoted keys/strings and no trailing commas.";
+
+    try {
+      const text = await callMessagesApi({
+        systemPrompt,
+        userPrompt: `${userPrompt}${retryHint}`,
+        token,
+        timeoutMs,
+      });
+      const object = parseJsonObject(text);
+      return object as T;
+    } catch (error) {
+      if (attempt === 1 && error instanceof Error) {
+        firstError = error;
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw firstError ?? new Error("Unknown JSON task error");
 }
 
 function coachPrompt(path: PathType) {
@@ -257,7 +322,7 @@ export async function callJudge(params: {
   return {
     path: params.path,
     round: params.round,
-    round_score: Number(json.round_score ?? 0),
+    round_score: clampScore(json.round_score),
     critical_gap: String(json.critical_gap ?? ""),
     next_constraint: String(json.next_constraint ?? ""),
     verdict,
@@ -294,7 +359,7 @@ export async function callEvaluate(params: {
   });
 
   return {
-    score: Number(json.score ?? 0),
+    score: clampScore(json.score),
     strengths: toStringArray(json.strengths),
     weaknesses: toStringArray(json.weaknesses),
     next_iteration: toStringArray(json.next_iteration),
