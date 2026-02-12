@@ -1,13 +1,12 @@
 import type { AgentDefinition, OutputFormat, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { createRequire } from "node:module";
+import path from "node:path";
 
 export type JsonRecord = Record<string, unknown>;
 export type PathType = "radical" | "conservative" | "cross_domain";
 
 const DEFAULT_TIMEOUT_MS = 90000;
 const DEFAULT_MAX_TURNS = 6;
-const require = createRequire(import.meta.url);
 
 type CoachOutput = {
   path: PathType;
@@ -57,11 +56,8 @@ function getClaudeCliPath() {
   const fromEnv = process.env.CLAUDE_CODE_EXECUTABLE_PATH?.trim();
   if (fromEnv) return fromEnv;
 
-  try {
-    return require.resolve("@anthropic-ai/claude-agent-sdk/cli.js");
-  } catch {
-    return undefined;
-  }
+  // Vercel Node runtime commonly uses /var/task as cwd; local dev uses project cwd.
+  return path.join(process.cwd(), "node_modules", "@anthropic-ai", "claude-agent-sdk", "cli.js");
 }
 
 async function runJsonTask<T extends JsonRecord>(params: {
