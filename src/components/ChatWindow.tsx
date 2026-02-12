@@ -5,6 +5,7 @@ import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 type ChatItem = { role: "user" | "assistant"; content: string };
 type SseEvent = { event: string; data: string };
 type PathKey = "radical" | "conservative" | "cross_domain";
+
 type PathReport = {
   path: PathKey;
   hypothesis?: string;
@@ -14,12 +15,22 @@ type PathReport = {
   risk_guardrail?: string;
   error?: string;
 };
+
 type Synthesis = {
   summary?: string;
   recommendation?: string;
 };
+
 type Evaluation = {
   score?: number;
+};
+
+type DebateRoundItem = {
+  path: PathKey;
+  round: number;
+  coach?: { hypothesis?: string };
+  secondme?: string;
+  error?: string;
 };
 
 function parseSseBlock(block: string): SseEvent | null {
@@ -44,13 +55,15 @@ export function ChatWindow() {
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const [pathStatus, setPathStatus] = useState<string>("idle");
+  const [debateStatus, setDebateStatus] = useState<string>("idle");
   const [pathReports, setPathReports] = useState<Partial<Record<PathKey, PathReport>>>({});
   const [synthesis, setSynthesis] = useState<Synthesis | null>(null);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
+  const [debateRounds, setDebateRounds] = useState<DebateRoundItem[]>([]);
   const [messages, setMessages] = useState<ChatItem[]>([
     {
       role: "assistant",
-      content: "欢迎进入轨迹讨论区。输入你的研究问题即可开始。",
+      content: "欢迎进入轨迹讨论区，输入你的问题开始探索。",
     },
   ]);
 
@@ -81,9 +94,11 @@ export function ChatWindow() {
     setInput("");
     setSending(true);
     setPathStatus("idle");
+    setDebateStatus("idle");
     setPathReports({});
     setSynthesis(null);
     setEvaluation(null);
+    setDebateRounds([]);
     setMessages((prev) => [
       ...prev,
       { role: "user", content: message },
@@ -124,42 +139,50 @@ export function ChatWindow() {
           if (!parsed) continue;
 
           try {
-            const payload = JSON.parse(parsed.data) as {
-              text?: string;
-              message?: string;
-              sessionId?: string;
-            };
+            const payload = JSON.parse(parsed.data) as Record<string, unknown>;
 
-            if (parsed.event === "session" && payload.sessionId) {
+            if (parsed.event === "session" && typeof payload.sessionId === "string") {
               setSessionId(payload.sessionId);
               continue;
             }
 
-            if (parsed.event === "delta" && payload.text) {
+            if (parsed.event === "delta" && typeof payload.text === "string") {
               appendToLastAssistant(payload.text);
               continue;
             }
 
             if (parsed.event === "error") {
               appendToLastAssistant(
-                payload.message ?? "聊天流中断，请稍后再试。",
+                typeof payload.message === "string"
+                  ? payload.message
+                  : "聊天流中断，请稍后重试。",
               );
               continue;
             }
 
-            if (parsed.event === "done") {
-              continue;
-            }
-
             if (parsed.event === "path_status") {
-              if (typeof (payload as { status?: string }).status === "string") {
-                setPathStatus((payload as { status: string }).status);
+              if (typeof payload.status === "string") {
+                setPathStatus(payload.status);
               }
               continue;
             }
 
+            if (parsed.event === "debate_status") {
+              if (typeof payload.status === "string") {
+                setDebateStatus(payload.status);
+              }
+              continue;
+            }
+
+            if (parsed.event === "debate_round") {
+              const item = payload as unknown as DebateRoundItem;
+              if (!item.path || typeof item.round !== "number") continue;
+              setDebateRounds((prev) => [...prev, item]);
+              continue;
+            }
+
             if (parsed.event === "path_report") {
-              const reportPayload = payload as {
+              const reportPayload = payload as unknown as {
                 path?: PathKey;
                 report?: PathReport;
                 error?: string;
@@ -177,12 +200,12 @@ export function ChatWindow() {
             }
 
             if (parsed.event === "synthesis") {
-              setSynthesis(payload as Synthesis);
+              setSynthesis(payload as unknown as Synthesis);
               continue;
             }
 
             if (parsed.event === "evaluation") {
-              setEvaluation(payload as Evaluation);
+              setEvaluation(payload as unknown as Evaluation);
               continue;
             }
           } catch {
@@ -200,7 +223,7 @@ export function ChatWindow() {
   useEffect(() => {
     if (!messageListRef.current) return;
     messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
-  }, [messages, sending]);
+  }, [messages, sending, debateRounds.length]);
 
   const onInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== "Enter" || event.shiftKey) return;
@@ -240,8 +263,9 @@ export function ChatWindow() {
       <div className="mt-3 rounded-xl border border-[var(--border)] bg-white p-3 text-xs text-[var(--text-muted)]">
         <div className="flex items-center justify-between">
           <span className="font-medium text-[var(--foreground)]">三路径系统智能体</span>
-          <span>状态: {pathStatus}</span>
+          <span>路径状态: {pathStatus}</span>
         </div>
+        <div className="mt-1">博弈轮状态: {debateStatus}</div>
         <div className="mt-2 space-y-1">
           {(["radical", "conservative", "cross_domain"] as PathKey[]).map((key) => {
             const report = pathReports[key];
@@ -270,6 +294,23 @@ export function ChatWindow() {
               <span>{evaluation.score}</span>
             </div>
           ) : null}
+          {debateRounds.length > 0 ? (
+            <div className="mt-2 space-y-1 border-t border-[var(--border)] pt-2">
+              <div className="font-medium text-[var(--foreground)]">多轮博弈过程</div>
+              {debateRounds.slice(-10).map((item, idx) => (
+                <div key={`${item.path}-${item.round}-${idx}`}>
+                  <span className="font-medium">
+                    R{item.round} {item.path}:
+                  </span>{" "}
+                  <span>
+                    {item.error
+                      ? `失败 - ${item.error}`
+                      : `${item.coach?.hypothesis ?? "无假设"} | ${item.secondme ?? "无SecondMe回应"}`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -285,7 +326,7 @@ export function ChatWindow() {
           disabled={sending}
           rows={2}
           aria-label="聊天输入框"
-          placeholder="例如：如果我走跨学科路线，三年后最关键的能力差是什么？"
+          placeholder="例如：如果我走跨学科路径，三年后最关键的能力差是什么？"
           className="flex-1 resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)]"
         />
         <button

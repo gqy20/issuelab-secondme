@@ -17,6 +17,14 @@ type ChatBody = {
   sessionId?: string;
 };
 
+type StreamPayload = {
+  sessionId?: string;
+  data?: { sessionId?: string; reply?: string };
+  choices?: Array<{ delta?: { content?: string } }>;
+  content?: string;
+  reply?: string;
+};
+
 function shouldRunSystemAgents() {
   return process.env.SYSTEM_AGENT_ENABLED?.trim() !== "false";
 }
@@ -27,6 +35,70 @@ function stringifyJson(value: unknown) {
   } catch {
     return "{}";
   }
+}
+
+function getDebateRounds() {
+  const raw = Number(process.env.SYSTEM_AGENT_DEBATE_ROUNDS ?? "10");
+  if (!Number.isFinite(raw) || raw < 1) return 10;
+  if (raw > 10) return 10;
+  return Math.floor(raw);
+}
+
+async function requestSecondMeReply(params: {
+  accessToken: string;
+  message: string;
+  sessionId?: string;
+}): Promise<{ sessionId?: string; text: string }> {
+  const upstream = await secondMeRequest("/api/secondme/chat/stream", {
+    method: "POST",
+    accessToken: params.accessToken,
+    body: JSON.stringify({
+      message: params.message,
+      ...(params.sessionId ? { session_id: params.sessionId } : {}),
+    }),
+  });
+
+  if (!upstream.ok || !upstream.body) {
+    throw new Error(`SecondMe request failed: ${upstream.status}`);
+  }
+
+  const decoder = new TextDecoder();
+  const reader = upstream.body.getReader();
+  let lineBuffer = "";
+  let text = "";
+  let sessionId = params.sessionId;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    lineBuffer += decoder.decode(value, { stream: true });
+    const lines = lineBuffer.split(/\r?\n/);
+    lineBuffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+
+      const raw = trimmed.slice(5).trim();
+      if (!raw || raw === "[DONE]") continue;
+
+      try {
+        const payload = JSON.parse(raw) as StreamPayload;
+        sessionId = payload.sessionId ?? payload.data?.sessionId ?? sessionId;
+        text +=
+          payload.choices?.[0]?.delta?.content ??
+          payload.data?.reply ??
+          payload.reply ??
+          payload.content ??
+          "";
+      } catch {
+        // Ignore malformed chunks.
+      }
+    }
+  }
+
+  return { sessionId, text: text || "No reply from SecondMe." };
 }
 
 export async function POST(request: Request) {
@@ -70,10 +142,7 @@ export async function POST(request: Request) {
 
   if (!upstream.ok || !upstream.body) {
     return NextResponse.json(
-      {
-        code: upstream.status || 502,
-        message: "上游聊天服务暂不可用",
-      },
+      { code: upstream.status || 502, message: "上游聊天服务暂不可用" },
       { status: 502 },
     );
   }
@@ -111,14 +180,7 @@ export async function POST(request: Request) {
             if (!raw || raw === "[DONE]") continue;
 
             try {
-              const payload = JSON.parse(raw) as {
-                sessionId?: string;
-                data?: { sessionId?: string; reply?: string };
-                choices?: Array<{ delta?: { content?: string } }>;
-                content?: string;
-                reply?: string;
-              };
-
+              const payload = JSON.parse(raw) as StreamPayload;
               const maybeSessionId =
                 payload.sessionId ?? payload.data?.sessionId ?? sessionId;
               if (maybeSessionId !== sessionId) {
@@ -155,6 +217,8 @@ export async function POST(request: Request) {
           const paths: PathType[] = ["radical", "conservative", "cross_domain"];
           const reports: Partial<Record<PathType, JsonRecord>> = {};
           const pathRunIdMap: Partial<Record<PathType, string>> = {};
+          const pathSessions: Partial<Record<PathType, string>> = {};
+          const failedPaths = new Set<PathType>();
           let runId: string | null = null;
 
           controller.enqueue(emit("path_status", { status: "running" }));
@@ -195,56 +259,56 @@ export async function POST(request: Request) {
             // Persistence errors should not break the chat flow.
           }
 
-          await Promise.all(
-            paths.map(async (path) => {
-              controller.enqueue(emit("path_status", { path, status: "running" }));
-              try {
-                const report = await callCoach(path, {
-                  taskInput: message,
-                  round: 1,
-                  context: `secondme_reply: ${assistantText}`,
-                });
-                reports[path] = report;
-                controller.enqueue(emit("path_report", { path, report }));
-                controller.enqueue(emit("path_status", { path, status: "done" }));
+          const debateRounds = getDebateRounds();
+          for (const path of paths) {
+            controller.enqueue(emit("path_status", { path, status: "running" }));
+          }
 
-                const pathRunId = pathRunIdMap[path];
-                if (pathRunId) {
-                  try {
-                    await prisma.$transaction([
-                      prisma.turn.create({
-                        data: {
-                          pathRunId,
-                          round: 1,
-                          role: "assistant",
-                          content: report.hypothesis ?? "",
-                          jsonOutput: stringifyJson(report),
-                        },
-                      }),
-                      prisma.pathReport.upsert({
-                        where: { pathRunId },
-                        update: { content: stringifyJson(report) },
-                        create: { pathRunId, content: stringifyJson(report) },
-                      }),
-                      prisma.pathRun.update({
-                        where: { id: pathRunId },
-                        data: { status: "done" },
-                      }),
-                    ]);
-                  } catch {
-                    // Persistence failure should not fail an already generated report.
-                  }
+          for (let round = 1; round <= debateRounds; round += 1) {
+            controller.enqueue(emit("debate_status", { round, status: "running" }));
+
+            for (const path of paths) {
+              if (failedPaths.has(path)) continue;
+
+              try {
+                const coach = await callCoach(path, {
+                  taskInput: message,
+                  round,
+                  context: `main_reply: ${assistantText}\nprevious: ${stringifyJson(reports[path])}`,
+                });
+
+                const secondmePrompt = [
+                  `User task: ${message}`,
+                  `Path: ${path}`,
+                  `Round: ${round}`,
+                  `Coach hypothesis: ${coach.hypothesis}`,
+                  `Coach reason: ${coach.why}`,
+                  "Reply with your stance, top risk, and one concrete next step.",
+                ].join("\n");
+
+                const secondme = await requestSecondMeReply({
+                  accessToken,
+                  message: secondmePrompt,
+                  sessionId: pathSessions[path],
+                });
+                if (secondme.sessionId) {
+                  pathSessions[path] = secondme.sessionId;
                 }
-              } catch (error) {
-                systemAgentFailed = true;
+
                 controller.enqueue(
-                  emit("path_report", {
+                  emit("debate_round", {
                     path,
-                    error:
-                      error instanceof Error ? error.message : "系统路径智能体调用失败",
+                    round,
+                    coach,
+                    secondme: secondme.text,
                   }),
                 );
-                controller.enqueue(emit("path_status", { path, status: "failed" }));
+
+                reports[path] = {
+                  ...coach,
+                  secondme_reply: secondme.text,
+                  round,
+                };
 
                 const pathRunId = pathRunIdMap[path];
                 if (pathRunId) {
@@ -253,24 +317,81 @@ export async function POST(request: Request) {
                       prisma.turn.create({
                         data: {
                           pathRunId,
-                          round: 1,
-                          role: "system",
-                          content:
-                            error instanceof Error ? error.message : "系统路径智能体调用失败",
+                          round,
+                          role: "coach",
+                          content: coach.hypothesis,
+                          jsonOutput: stringifyJson(coach),
                         },
                       }),
-                      prisma.pathRun.update({
-                        where: { id: pathRunId },
-                        data: { status: "failed" },
+                      prisma.turn.create({
+                        data: {
+                          pathRunId,
+                          round,
+                          role: "secondme",
+                          content: secondme.text,
+                        },
                       }),
                     ]);
                   } catch {
                     // Ignore persistence failure.
                   }
                 }
+              } catch (error) {
+                systemAgentFailed = true;
+                failedPaths.add(path);
+                controller.enqueue(
+                  emit("debate_round", {
+                    path,
+                    round,
+                    error:
+                      error instanceof Error ? error.message : "系统博弈轮执行失败",
+                  }),
+                );
               }
-            }),
-          );
+            }
+
+            controller.enqueue(emit("debate_status", { round, status: "done" }));
+          }
+
+          for (const path of paths) {
+            const report = reports[path];
+            const pathRunId = pathRunIdMap[path];
+            if (!report) {
+              controller.enqueue(emit("path_status", { path, status: "failed" }));
+              if (pathRunId) {
+                try {
+                  await prisma.pathRun.update({
+                    where: { id: pathRunId },
+                    data: { status: "failed" },
+                  });
+                } catch {
+                  // Ignore persistence failure.
+                }
+              }
+              continue;
+            }
+
+            controller.enqueue(emit("path_report", { path, report }));
+            controller.enqueue(emit("path_status", { path, status: "done" }));
+
+            if (pathRunId) {
+              try {
+                await prisma.$transaction([
+                  prisma.pathReport.upsert({
+                    where: { pathRunId },
+                    update: { content: stringifyJson(report) },
+                    create: { pathRunId, content: stringifyJson(report) },
+                  }),
+                  prisma.pathRun.update({
+                    where: { id: pathRunId },
+                    data: { status: "done" },
+                  }),
+                ]);
+              } catch {
+                // Ignore persistence failure.
+              }
+            }
+          }
 
           const radical = reports.radical;
           const conservative = reports.conservative;
@@ -308,7 +429,7 @@ export async function POST(request: Request) {
                     }),
                     prisma.run.update({
                       where: { id: runId },
-                      data: { status: "done" },
+                      data: { status: systemAgentFailed ? "failed" : "done" },
                     }),
                   ]);
                 } catch {
@@ -320,24 +441,21 @@ export async function POST(request: Request) {
               controller.enqueue(
                 emit("error", {
                   message:
-                    error instanceof Error
-                      ? error.message
-                      : "系统智能体综合/评估阶段失败",
-                  }),
+                    error instanceof Error ? error.message : "系统综合评估阶段失败",
+                }),
               );
+              if (runId) {
+                try {
+                  await prisma.run.update({
+                    where: { id: runId },
+                    data: { status: "failed" },
+                  });
+                } catch {
+                  // Ignore persistence failure.
+                }
+              }
             }
           } else if (runId) {
-            try {
-              await prisma.run.update({
-                where: { id: runId },
-                data: { status: "failed" },
-              });
-            } catch {
-              // Ignore persistence failure.
-            }
-          }
-
-          if (runId && systemAgentFailed) {
             try {
               await prisma.run.update({
                 where: { id: runId },
