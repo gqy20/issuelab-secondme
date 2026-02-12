@@ -32,10 +32,10 @@ export async function GET(request: Request) {
     console.warn("OAuth state 校验失败，可能来自 WebView 场景");
   }
 
-  const tokenEndpoint = process.env.SECONDME_TOKEN_ENDPOINT;
-  const clientId = process.env.SECONDME_CLIENT_ID;
-  const clientSecret = process.env.SECONDME_CLIENT_SECRET;
-  const redirectUri = process.env.SECONDME_REDIRECT_URI;
+  const tokenEndpoint = process.env.SECONDME_TOKEN_ENDPOINT?.trim();
+  const clientId = process.env.SECONDME_CLIENT_ID?.trim();
+  const clientSecret = process.env.SECONDME_CLIENT_SECRET?.trim();
+  const redirectUri = process.env.SECONDME_REDIRECT_URI?.trim();
 
   if (!tokenEndpoint || !clientId || !clientSecret || !redirectUri) {
     return NextResponse.redirect(new URL("/?error=missing_env", request.url));
@@ -89,4 +89,3 @@ export async function GET(request: Request) {
   clearOauthStateCookie(response);
   return response;
 }
-

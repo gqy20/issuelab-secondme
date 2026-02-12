@@ -3,9 +3,9 @@ import { NextResponse } from "next/server";
 import { setOauthStateCookie } from "@/lib/auth";
 
 export async function GET() {
-  const oauthUrl = process.env.SECONDME_OAUTH_URL;
-  const clientId = process.env.SECONDME_CLIENT_ID;
-  const redirectUri = process.env.SECONDME_REDIRECT_URI;
+  const oauthUrl = process.env.SECONDME_OAUTH_URL?.trim();
+  const clientId = process.env.SECONDME_CLIENT_ID?.trim();
+  const redirectUri = process.env.SECONDME_REDIRECT_URI?.trim();
 
   if (!oauthUrl || !clientId || !redirectUri) {
     return NextResponse.json(
@@ -26,4 +26,3 @@ export async function GET() {
   setOauthStateCookie(response, state);
   return response;
 }
-

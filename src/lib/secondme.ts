@@ -6,7 +6,7 @@ export async function secondMeRequest(
   path: string,
   init: SecondMeInit = {},
 ) {
-  const baseUrl = process.env.SECONDME_API_BASE_URL;
+  const baseUrl = process.env.SECONDME_API_BASE_URL?.trim();
   if (!baseUrl) {
     throw new Error("Missing SECONDME_API_BASE_URL");
   }
@@ -33,4 +33,3 @@ export async function readJsonSafe(response: Response) {
     return { code: response.status, message: text };
   }
 }
-
