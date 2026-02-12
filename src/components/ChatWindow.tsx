@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 
 type ChatItem = { role: "user" | "assistant"; content: string };
 
@@ -15,8 +15,13 @@ export function ChatWindow() {
     },
   ]);
 
+  const formRef = useRef<HTMLFormElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (sending) return;
+
     const message = input.trim();
     if (!message) return;
 
@@ -56,8 +61,19 @@ export function ChatWindow() {
     }
   };
 
+  useEffect(() => {
+    if (!messageListRef.current) return;
+    messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+  }, [messages, sending]);
+
+  const onInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+    formRef.current?.requestSubmit();
+  };
+
   return (
-    <div className="flex h-[560px] flex-col">
+    <div className="flex h-[62dvh] min-h-[420px] max-h-[560px] flex-col sm:h-[560px]">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">轨迹对话</h2>
         <span className="text-xs text-slate-500">
@@ -65,7 +81,10 @@ export function ChatWindow() {
         </span>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+      <div
+        ref={messageListRef}
+        className="flex-1 space-y-3 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3"
+      >
         {messages.map((item, idx) => (
           <div
             key={`${item.role}-${idx}`}
@@ -80,12 +99,15 @@ export function ChatWindow() {
         ))}
       </div>
 
-      <form onSubmit={onSubmit} className="mt-3 flex gap-2">
-        <input
+      <form ref={formRef} onSubmit={onSubmit} className="mt-3 flex gap-2">
+        <textarea
           value={input}
           onChange={(event) => setInput(event.target.value)}
+          onKeyDown={onInputKeyDown}
+          disabled={sending}
+          rows={2}
           placeholder="例如：如果我走跨学科路线，三年后最关键的能力差是什么？"
-          className="flex-1 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)]"
+          className="flex-1 resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--accent-soft)] disabled:cursor-not-allowed disabled:bg-slate-100"
         />
         <button
           type="submit"
